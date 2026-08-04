@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, redirect, useNavigate } from "react-router";
 import { NoteCard } from "~/components/board/NoteCard";
-import { LinkLayer, LINK_COLORS } from "~/components/board/LinkLayer";
 import { jsonApi } from "~/lib/api";
 import { subscribeBoard } from "~/lib/pusher";
 import type { BoardMemberInfo } from "~/lib/pusher";
 import { useBoardStore } from "~/lib/store";
-import type { Link as BoardLink, Note } from "~/lib/types";
+import type { Note } from "~/lib/types";
 import { getSessionUser } from "~/server/auth";
-import { getBoardDetail, getUserSettings, listLinks, listNotes } from "~/server/db";
+import { getBoardDetail, getUserSettings, listNotes } from "~/server/db";
 import type { Route } from "./+types/board";
 
 export async function loader({ request, context, params }: Route.LoaderArgs) {
@@ -24,15 +23,13 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
       { status: 403, headers: { "Content-Type": "application/json" } },
     );
   }
-  const [notes, links, settings] = await Promise.all([
+  const [notes, settings] = await Promise.all([
     listNotes(env, params.boardId),
-    listLinks(env, params.boardId),
     getUserSettings(env, user.id),
   ]);
   return {
     board,
     notes,
-    links,
     user,
     isEditor: board.role === "editor",
     isDefault: settings.defaultBoardId === board.id,
@@ -79,13 +76,12 @@ export async function action({ request, context, params }: Route.ActionArgs) {
 }
 
 export default function Board({ loaderData }: Route.ComponentProps) {
-  const { board, notes, links, user, isEditor, isDefault, pusherKey, pusherCluster } = loaderData;
+  const { board, notes, user, isEditor, isDefault, pusherKey, pusherCluster } = loaderData;
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const setBoardData = useBoardStore((s) => s.setBoardData);
   const notesMap = useBoardStore((s) => s.notes);
-  const linksMap = useBoardStore((s) => s.links);
   const viewport = useBoardStore((s) => s.viewport);
   const setViewport = useBoardStore((s) => s.setViewport);
   const zoomAt = useBoardStore((s) => s.zoomAt);
@@ -104,15 +100,15 @@ export default function Board({ loaderData }: Route.ComponentProps) {
 
   // 初始化数据与实时订阅
   useEffect(() => {
-    setBoardData(notes, links);
-  }, [setBoardData, notes, links]);
+    setBoardData(notes);
+  }, [setBoardData, notes]);
 
   useEffect(() => {
     const unsubscribe = subscribeBoard(pusherKey, pusherCluster, board.id, {
       onPatch: (patch) => {
         applyPatch(patch);
         if (patch.sender !== user.id) {
-          setToast(`${patch.entity === "note" ? "便笺" : "连线"}已更新`);
+          setToast("便笺已更新");
           setTimeout(() => setToast(null), 1500);
         }
       },
@@ -167,38 +163,6 @@ export default function Board({ loaderData }: Route.ComponentProps) {
         .catch(() => setToast("移动保存失败"));
     },
     [upsertNote],
-  );
-
-  // 连线创建: 成功后用返回值更新本地 store (不依赖 Pusher 回环)
-  const upsertLink = useBoardStore((s) => s.upsertLink);
-  const handleLinkDrop = useCallback(
-    (fromNoteId: string, screenX: number, screenY: number) => {
-      const vp = useBoardStore.getState().viewport;
-      const notesAll = useBoardStore.getState().notes;
-      let target: Note | null = null;
-      for (const n of Object.values(notesAll)) {
-        if (n.id === fromNoteId) continue;
-        const pinX = (n.posX + n.width / 2) * vp.scale + vp.viewX;
-        const pinY = n.posY * vp.scale + vp.viewY;
-        const dist = Math.hypot(pinX - screenX, pinY - screenY);
-        if (dist < 32) {
-          target = n;
-          break;
-        }
-      }
-      if (!target) return;
-      void jsonApi<{ link: BoardLink }>("/api/links", "POST", {
-        boardId: board.id,
-        fromNoteId,
-        toNoteId: target.id,
-        color: LINK_COLORS[Math.floor(Math.random() * LINK_COLORS.length)],
-      })
-        .then((r) => {
-          if (r.link) upsertLink(r.link);
-        })
-        .catch(() => setToast("创建连线失败"));
-    },
-    [board.id, upsertLink],
   );
 
   // 平移与缩放手势
@@ -429,14 +393,10 @@ export default function Board({ loaderData }: Route.ComponentProps) {
                 isEditor={isEditor}
                 onClick={openNote}
                 onMoveCommit={commitMove}
-                onLinkDrop={handleLinkDrop}
               />
             </div>
           ))}
         </div>
-
-        {/* 连线层 (屏幕坐标) */}
-        <LinkLayer notes={notesMap} links={linksMap} isEditor={isEditor} />
 
         {/* 蓝色拖拽 mask */}
         {dragNote && (

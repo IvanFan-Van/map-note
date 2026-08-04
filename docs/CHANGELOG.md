@@ -81,3 +81,17 @@
   - `app/routes/board.tsx`: `commitMove` 改为**乐观放置** — 松手先用预览坐标更新本地 store (无回弹), PUT 成功后用服务端返回值校准; `handleLinkDrop` 同样用 POST 响应 `upsertLink` 本地落线
 - **原因:** 原实现丢弃 API 响应, 便笺位置/连线创建后的本地更新完全依赖"服务端→Pusher→自身"广播回环; 订阅或触发失败时松手便笺弹回原位、连线不出现
 - **最终结果:** 放置/连线不再依赖实时通道, 断线时本地操作依然生效; typecheck ✓, PUT/连线 API 验证 ✓。
+
+## 2026-08-04 — 样式重设计: 便笺极简单色化 + 移除连线功能
+
+- **修改文件:**
+  - `app/components/board/NoteCard.tsx`: 重写为固定 240×320px 极简矩形卡片 — 单色浅暖白、无钉子/折角装饰、flex 布局 (缩略图 + 内容区 overflow hidden + 底部状态栏), 删除钉子 SVG、图钉连线拖拽手势 (`handlePinDown`/`onLinkDrop`)
+  - `app/app.css`: 重写 `.note-card` — 纯色 `#fefcf5` + 1px 同色系描边 + 双层柔和阴影 + hover 阴影加深, 删除渐变背景、折角/折痕伪元素
+  - `app/lib/store.ts`: 删除 linkDrag/selectedLinkId 状态与 startLinkDrag/updateLinkDrag/endLinkDrag/selectLink/upsertLink/removeLink, `applyPatch` 仅保留 note 分支
+  - `app/lib/types.ts`: 删除 `Link` 类型, `PatchEntity` 移除 `"link"`
+  - `app/routes/board.tsx`: 删除 LinkLayer 渲染、连线创建手势 (`handleLinkDrop`)、loader 不再查询 links
+  - 删除文件: `app/components/board/LinkLayer.tsx`、`app/routes/api/links.tsx`、`app/routes/api/link.tsx`
+  - `app/routes.ts`: 删除连线 API 路由; `app/server/db.ts`: 删除连线数据层函数 (links 表保留于迁移, 不再读写); `app/routes/api/board.tsx`: loader 不再返回 links
+  - `docs/specifications.md`: F2/F6/6.6/权限矩阵/视觉规范/里程碑/ADR 同步更新 (连线功能标记移除)
+- **验证:** typecheck ✓; 首页/背景板页 200, API 无 links 字段, 日志零错误
+- **最终结果:** 便笺呈现为高而窄 (240×320) 的极简单色卡片, 层次由亮度差与阴影表达; 连线功能整体移除。

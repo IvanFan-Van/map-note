@@ -1,5 +1,5 @@
 import { requireUser } from "~/server/auth";
-import { getBoardDetail, listLinks, listNotes, setDefaultBoard } from "~/server/db";
+import { getBoardDetail, listNotes, setDefaultBoard } from "~/server/db";
 import { assertMember } from "~/server/permissions";
 import type { Route } from "./+types/board";
 
@@ -13,11 +13,8 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
       { status: 403, headers: { "Content-Type": "application/json" } },
     );
   }
-  const [notes, links] = await Promise.all([
-    listNotes(env, params.id),
-    listLinks(env, params.id),
-  ]);
-  return { ok: true, data: { board, notes, links } };
+  const notes = await listNotes(env, params.id);
+  return { ok: true, data: { board, notes } };
 }
 
 export async function action({ request, context, params }: Route.ActionArgs) {

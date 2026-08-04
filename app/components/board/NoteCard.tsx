@@ -4,6 +4,9 @@ import remarkGfm from "remark-gfm";
 import type { Note } from "~/lib/types";
 import { useBoardStore } from "~/lib/store";
 
+const NOTE_WIDTH = 240;
+const NOTE_HEIGHT = 320;
+
 const MOODS: Record<string, string> = {
   happy: "😊",
   neutral: "😐",
@@ -33,19 +36,17 @@ export function extractImages(markdown: string): string[] {
 function ThumbnailStack({ images }: { images: string[] }) {
   if (images.length === 0) return null;
   return (
-    <div className="relative h-24 mx-3 mt-3">
+    <div className="relative h-20 mx-4 mt-4 shrink-0">
       {images.map((src, i) => (
         <img
           key={src + i}
           src={src}
           alt=""
           loading="lazy"
-          className="absolute inset-0 w-full h-24 object-cover rounded-md shadow-md border border-black/5"
+          className="absolute inset-0 w-full h-20 object-cover rounded border border-warm/10 shadow-sm"
           style={{
-            transform: `translate(${i * 7}px, ${i * 5}px) rotate(${i === 0 ? -1 : 2}deg)`,
+            transform: `translate(${i * 6}px, ${i * 4}px)`,
             zIndex: i,
-            opacity: 1 - i * 0.12,
-            filter: i === 0 ? "none" : "brightness(0.96)",
           }}
         />
       ))}
@@ -58,48 +59,23 @@ export const NoteCard = memo(function NoteCard({
   isEditor,
   onClick,
   onMoveCommit,
-  onLinkDrop,
 }: {
   note: Note;
   isEditor: boolean;
   onClick: (note: Note) => void;
   onMoveCommit: (noteId: string, x: number, y: number) => void;
-  onLinkDrop: (fromNoteId: string, screenX: number, screenY: number) => void;
 }) {
   const dragNote = useBoardStore((s) => s.dragNote);
   const startDragNote = useBoardStore((s) => s.startDragNote);
   const updateDragNote = useBoardStore((s) => s.updateDragNote);
   const endDragNote = useBoardStore((s) => s.endDragNote);
-  const startLinkDrag = useBoardStore((s) => s.startLinkDrag);
-  const updateLinkDrag = useBoardStore((s) => s.updateLinkDrag);
-  const endLinkDrag = useBoardStore((s) => s.endLinkDrag);
 
   const isDragging = dragNote?.noteId === note.id;
   // NoteCard 位于已应用 translate+scale 的 world 层内, 直接使用世界坐标定位
   const posX = isDragging ? dragNote.previewX : note.posX;
   const posY = isDragging ? dragNote.previewY : note.posY;
-  const w = note.width;
 
   const images = extractImages(note.content);
-
-  const handlePinDown = (e: React.PointerEvent) => {
-    if (!isEditor) return;
-    e.stopPropagation();
-    e.preventDefault();
-    const el = e.currentTarget as HTMLElement;
-    el.setPointerCapture(e.pointerId);
-    startLinkDrag(note.id, e.clientX, e.clientY);
-    const onMove = (ev: PointerEvent) => updateLinkDrag(ev.clientX, ev.clientY);
-    const onUp = (ev: PointerEvent) => {
-      el.releasePointerCapture(e.pointerId);
-      const drag = endLinkDrag();
-      if (drag) onLinkDrop(drag.fromNoteId, ev.clientX, ev.clientY);
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-    };
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
-  };
 
   const handleBodyDown = (e: React.PointerEvent) => {
     if (!isEditor) return;
@@ -137,33 +113,21 @@ export const NoteCard = memo(function NoteCard({
       style={{
         left: posX,
         top: posY,
-        width: w,
+        width: NOTE_WIDTH,
+        height: NOTE_HEIGHT,
         zIndex: isDragging ? 9999 : note.zIndex,
         opacity: isDragging ? 0.45 : 1,
         touchAction: "none",
       }}
     >
       <div
-        className="note-card rounded-md px-4 pt-6 pb-5 shadow-[0_6px_18px_rgba(120,100,60,0.25)] relative cursor-pointer"
+        className="note-card h-full w-full rounded-lg cursor-pointer flex flex-col"
         onPointerDown={handleBodyDown}
         onDoubleClick={() => onClick(note)}
       >
-        {/* 大头钉 */}
-        <div
-          className="absolute left-1/2 -translate-x-1/2 -top-3 z-20"
-          style={{ cursor: isEditor ? "crosshair" : "default" }}
-          onPointerDown={handlePinDown}
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20">
-            <circle cx="10" cy="9" r="7" fill="#e05252" stroke="#b33737" strokeWidth="1.5" />
-            <circle cx="7.5" cy="6.5" r="2.2" fill="#ffd0d0" />
-            <rect x="9" y="13" width="2" height="5" rx="1" fill="#8a8a8a" />
-          </svg>
-        </div>
-
         {images.length > 0 && <ThumbnailStack images={images} />}
 
-        <div className="prose-note line-clamp-8 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 text-[15px] leading-relaxed break-words">
+        <div className="flex-1 min-h-0 overflow-hidden px-4 pt-3 text-[15px] leading-relaxed break-words">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -190,17 +154,13 @@ export const NoteCard = memo(function NoteCard({
           </ReactMarkdown>
         </div>
 
-        {/* 快捷状态 */}
+        {/* 快捷状态栏 (固定底部) */}
         {(note.mood || note.weather || note.fatigue != null || note.diet) && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          <div className="shrink-0 flex items-center gap-2 border-t border-warm/10 px-4 py-2 text-sm text-warm/70">
             {note.mood && <span title="心情">{MOODS[note.mood] ?? "❓"}</span>}
             {note.weather && <span title="天气">{WEATHERS[note.weather] ?? "❓"}</span>}
-            {note.fatigue != null && (
-              <span title={`疲惫 ${note.fatigue}/10`} className="text-warm/60">
-                ⚡{note.fatigue}
-              </span>
-            )}
-            {note.diet && <span title="进食" className="text-warm/60 truncate max-w-[60%]">🍽 {note.diet}</span>}
+            {note.fatigue != null && <span title={`疲惫 ${note.fatigue}/10`}>⚡{note.fatigue}</span>}
+            {note.diet && <span title="进食" className="truncate">🍽 {note.diet}</span>}
           </div>
         )}
       </div>

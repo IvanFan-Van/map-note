@@ -2,7 +2,6 @@ import type {
   BoardDetail,
   BoardSummary,
   Invitation,
-  Link,
   Note,
   Role,
   User,
@@ -281,94 +280,6 @@ export async function deleteNote(env: Env, noteId: string): Promise<void> {
     ),
     env.DB.prepare(`DELETE FROM notes WHERE id = ?`).bind(noteId),
   ]);
-}
-
-// ---------- 连线 ----------
-
-const LINK_SELECT = `id, board_id, from_note_id, to_note_id, color, thickness, created_at`;
-
-function linkFromRow(r: {
-  id: string;
-  board_id: string;
-  from_note_id: string;
-  to_note_id: string;
-  color: string;
-  thickness: number;
-  created_at: number;
-}): Link {
-  return {
-    id: r.id,
-    boardId: r.board_id,
-    fromNoteId: r.from_note_id,
-    toNoteId: r.to_note_id,
-    color: r.color,
-    thickness: r.thickness,
-    createdAt: r.created_at,
-  };
-}
-
-export async function listLinks(env: Env, boardId: string): Promise<Link[]> {
-  const rows = await env.DB.prepare(
-    `SELECT ${LINK_SELECT} FROM links WHERE board_id = ? ORDER BY created_at`,
-  )
-    .bind(boardId)
-    .all<Parameters<typeof linkFromRow>[0]>();
-  return rows.results.map(linkFromRow);
-}
-
-export async function createLink(
-  env: Env,
-  boardId: string,
-  fromNoteId: string,
-  toNoteId: string,
-  color = "#e11d48",
-  thickness = 2,
-): Promise<Link> {
-  const id = newId();
-  await env.DB.prepare(
-    `INSERT INTO links (id, board_id, from_note_id, to_note_id, color, thickness, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(id, boardId, fromNoteId, toNoteId, color, thickness, now())
-    .run();
-  const row = await env.DB.prepare(`SELECT ${LINK_SELECT} FROM links WHERE id = ?`)
-    .bind(id)
-    .first<Parameters<typeof linkFromRow>[0]>();
-  return linkFromRow(row!);
-}
-
-export async function getLink(
-  env: Env,
-  linkId: string,
-): Promise<Link | null> {
-  const row = await env.DB.prepare(`SELECT ${LINK_SELECT} FROM links WHERE id = ?`)
-    .bind(linkId)
-    .first<Parameters<typeof linkFromRow>[0]>();
-  return row ? linkFromRow(row) : null;
-}
-
-export async function updateLink(
-  env: Env,
-  linkId: string,
-  changes: Partial<Pick<Link, "color" | "thickness">>,
-): Promise<Link | null> {
-  const sets: string[] = [];
-  const binds: (string | number)[] = [];
-  for (const [key, value] of Object.entries(changes)) {
-    if (value === undefined) continue;
-    sets.push(`${key} = ?`);
-    binds.push(value as string | number);
-  }
-  if (sets.length === 0) return getLink(env, linkId);
-  binds.push(linkId);
-  await env.DB.prepare(`UPDATE links SET ${sets.join(", ")} WHERE id = ?`)
-    .bind(...binds)
-    .run();
-  return getLink(env, linkId);
-}
-
-export async function deleteLink(env: Env, linkId: string): Promise<void> {
-  await env.DB.prepare(`DELETE FROM links WHERE id = ?`).bind(linkId).run();
 }
 
 // ---------- 背景板详情 ----------

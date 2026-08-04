@@ -206,4 +206,102 @@
 
 ---
 
-*评审完成时间: 2026-08-04。本报告基于当前 main 分支(c079737)代码状态。*
+## 八、Playwright 浏览器实测验证记录(2026-08-04)
+
+### 8.1 测试环境与手段
+
+| 项 | 说明 |
+| --- | --- |
+| 被测对象 | 本地 dev server(`pnpm dev`,Workers 运行时 + 本地 D1/R2 + 真实 Pusher 云端凭据) |
+| 测试账号 | 本地 D1 注入用户 `testuser01`(editor)与 `testuser02`(viewer),背景板 `boardAAA`/`boardBBB` 及 3 张便笺 |
+| 登录方式 | 按 React Router cookie-session 实现(`base64(JSON) + "." + base64url(HMAC-SHA256)`)以本地 `SECRET_KEY` 手工签发签名会话 Cookie,验证 `/api/user` 200 后进入浏览器 |
+| 工具 | playwright-cli 0.1.17(真实 Chromium 模拟鼠标/触屏/网络拦截) |
+
+> ⚠️ 测试数据说明: 测试向本地 D1 注入了上述测试用户/背景板/便笺,并将 `noteAAA1` 位置改为 (420,290)、`noteBBB1` 内容改为 `PROBE2_服务器二次修改`。仅影响本地开发库,不涉及生产;若需清理请从本地 D1 删除相关行。
+
+### 8.2 实测结论(全部复现)
+
+#### ✅ S1 实锤 — Cookie 缺少 Secure 标志
+- 操作: `curl /auth/login` 抓取真实 `Set-Cookie` 响应头
+- 实测: `set-cookie: co_note_oauth=...; Max-Age=600; Path=/; HttpOnly; SameSite=Lax` — **无 `Secure` 标志**(会话 Cookie 由同一 `COOKIE_BASE`(auth.ts:11, `secure: false`)签发)
+- 结论: 中间人可截获 OAuth 验证器与(泄露场景下)会话 Cookie
+
+#### ✅ S2 实锤 — 开放重定向
+- 操作: `curl /auth/login?returnTo=https://evil.com`,base64 解码返回的 OAuth Cookie
+- 实测: Cookie 内容为 `{"state":"...","codeVerifier":"...","returnTo":"https://evil.com"}` — **攻击者可控的 returnTo 被原样写入 Cookie**,回调(oauth.ts:82-93 → auth.callback.tsx:31)登录成功后执行 `redirect("https://evil.com")`
+- 结论: 经典 Open Redirect,可被用于钓鱼
+
+#### ✅ R1 实锤 — 切换背景板后 Pusher 订阅必失败
+- 操作: 登录后点击进入板 A(SPA 导航)→ 检查订阅 → 返回首页 → 点击进入板 B
+- 实测:
+  ```
+  [POST] /api/pusher/auth => [200] OK        (板 A,第 39 个请求)
+  [POST] /api/pusher/auth => [400] Bad Request (板 B,第 44 个请求)
+  ```
+  板 B 顶部状态为「连接中」,永远无法变为「已连接」;板 B 无任何实时功能
+- 结论: 根因与代码分析一致 — `lib/pusher.ts:16` 单例固化首次 `auth.params.boardId`,切板后鉴权参数与服务端校验(`pusher-auth.tsx:22`)冲突。**前端 boardId 参数本可删除**(服务端可从 channel_name 解析),该 bug 100% 复现
+
+#### ✅ R4 实锤 — 自己的操作结果依赖 Pusher 回环,无回环时位置弹回
+- 操作: 在实时失效的板 B 中,鼠标拖拽便笺从 (200,200) 到 (620,420) 并松手
+- 实测:
+  - 网络: `[PUT] /api/notes/noteBBB1/position => [200] OK`(服务器已保存新位置)
+  - UI: 便笺 `left/top` 仍为 `200px/200px` — **弹回原位**
+- 结论: `board.tsx:commitMove` 成功后不更新本地 store,位置仅靠自己的广播 patch 回显;实时通道故障时 UI 与服务器数据永久分叉,用户拖动"看起来无效",刷新后便笺又"瞬移"到别处。对比:板 A(实时正常)同操作位置正确更新,证明差异完全由回环依赖导致
+
+#### ✅ R5 实锤 — 编辑页无实时订阅
+- 操作: 打开便笺编辑页(内容为 A)→ 服务器端(PATCH 200)把内容改为 B → 等待 3 秒观察 textarea
+- 实测: textarea 内容始终为 A,**服务器修改永不出现**
+- 结论: 规格 §7.5 承诺"编辑中他人变更通过 Pusher patch 合并进表单"未实现;协同编辑时双方互相覆盖且无感知
+
+#### ✅ D1 实锤 — 保存失败仍显示"已保存"
+- 操作: Playwright 拦截 `PATCH /api/notes/noteBBB1` 返回 500 → 编辑页输入文本 → 等待防抖保存完成
+- 实测: 页面顶部状态显示「已保存」(绿色),而请求实际失败、内容未落库
+- 结论: `note.tsx:63` 的 `.catch(() => setSyncState("saved"))` 造成数据丢失无感知
+
+#### ✅ D3 实锤 — 删除便笺无任何 UI 入口
+- 操作: 打开便笺编辑页,全页快照检索「删除/delete/trash」等关键词
+- 实测: **零匹配**。画布与编辑器均无删除便笺入口(删除连线浮层有「删除连线」按钮,便笺删除 API 存在但无调用方)
+- 结论: 用户无法删除便笺,数据永久累积
+
+#### ✅ D4 实锤 — 输入校验缺失导致 500
+- 操作: 以会话 Cookie 直接调用 API
+- 实测:
+  ```
+  PATCH /api/notes/noteBBB1 {"fatigue":99}  → 500
+  Error: D1_ERROR: CHECK constraint failed: fatigue BETWEEN 0 AND 10
+  PUT /api/notes/noteBBB1/position {"x":1e999,"y":0} → 500
+  Error: D1_ERROR: NOT NULL constraint failed: notes.pos_x (Infinity 无法绑定)
+  ```
+- 结论: 非法输入全部落成 500(应为 400),且 `x=Infinity` 可污染 DB 写入路径
+
+#### ✅ A4 实锤 — SSR 首屏空白
+- 操作: 无浏览器环境下 `curl -H "Cookie: ..." /b/boardAAA` 抓取 SSR HTML
+- 实测: HTML 中 `note-card` 出现 **0 次**;便笺文本仅存在于 `window.__reactRouterContext`(loader 数据序列化)中 — **SSR 渲染层没有任何便笺**,内容全部依赖客户端 JS 执行 + useEffect 填充
+- 结论: 首屏空白闪烁、无 JS 环境不可用;store 初始状态未被 loaderData 初始化
+
+#### ✅ 移动端实锤 — 无创建便笺入口
+- 操作: 移动设备仿真打开板 A,快照检索创建入口;双击空白区域两次
+- 实测: 页面仅「☆/邀请」按钮,**无任何创建便笺入口**;模拟双击后便笺数仍为 2、URL 未变化(触屏不产生 `dblclick`)
+- 结论: 移动端用户无法创建便笺(唯一入口是桌面端双击),与规格"移动端支持"矛盾
+
+#### ✅ E3 实锤 — Dockerfile 必然构建失败
+- 静态核对: Dockerfile 使用 `npm ci` 与 `COPY package.json package-lock.json`,而项目为 **pnpm**(仅有 `pnpm-lock.yaml`)→ 首步 `COPY` 即失败;且产物 `build/server` 是 Node serve 模式,与 Cloudflare Workers 部署链路完全无关
+- 结论: 模板遗留死配置,应删除或改造成 wrangler 部署文档
+
+### 8.3 实测中额外发现的新问题
+
+| # | 问题 | 证据 | 说明 |
+| --- | --- | --- | --- |
+| N1 | `GET /api/notes/:id` 返回 500 且**泄露 stack trace** | `curl /api/notes/noteBBB1` → React Router 内部错误页含完整 `Error.stack` | 该路由仅定义 action 未定义 loader;API 接口应统一 405 且不暴露堆栈(生产环境信息泄露) |
+| N2 | `wrangler.jsonc` compatibility_date 无效 | dev 启动日志: `The latest compatibility date supported ... is "2025-11-25", but you've requested "2026-07-01". Falling back to "2025-11-25"` | 配置日期超前于运行时支持,静默回退,文档/配置与实际行为不一致 |
+| N3 | dev server 在测试中崩溃一次(端口消失,重启恢复) | 操作过程中 `curl` 返回 000、`netstat` 无 LISTENING | 稳定性隐患,可能与写入 Infinity/约束错误触发 worker 异常有关,需排查(不确定是否为环境因素,评级待定) |
+
+### 8.4 实测方法学说明
+
+- 会话伪造: 直接按 React Router `encodeData + sign` 算法以 `SECRET_KEY` 签发 Cookie,跳过 Google OAuth 依赖,使纯本地环境可以完整走通"登录后用户操作"链路——这是验证前端行为(而非 OAuth 本身)的前提
+- 板 B 的 Pusher 订阅失败状态(R1)恰好构成验证 R4 的"无回环环境",两缺陷相互叠加,实际用户场景正是如此
+- 所有网络断言(200/400/500)均来自浏览器请求日志与 curl 响应码,非推断
+
+---
+
+*评审完成时间: 2026-08-04。本报告基于当前 main 分支(c079737)代码状态,第八章节为 Playwright 实测补充。*

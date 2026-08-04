@@ -16,45 +16,18 @@ body {
   letter-spacing: 0.02em;
 }
 
-/* 便笺纸张质感 */
+/* 便笺卡片: 单色浅暖白 + 描边 + 柔和双层阴影, 无渐变 */
 .note-card {
-  position: relative;
-  background: linear-gradient(
-    180deg,
-    #fffbe0 0%,
-    #fff9c4 65%,
-    #f6eeb4 100%
-  );
-  box-shadow: 0 6px 18px rgba(120, 100, 60, 0.25);
-  overflow: hidden;
+  background: #fefcf5;
+  border: 1px solid rgba(74, 66, 56, 0.12);
+  box-shadow:
+    0 1px 2px rgba(74, 66, 56, 0.08),
+    0 8px 24px rgba(74, 66, 56, 0.12);
+  transition: box-shadow 150ms ease;
 }
 
-/* 右下角折起纸角 */
-.note-card::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 26px;
-  height: 26px;
-  background: linear-gradient(315deg, #ece2b0 0%, #faf2cc 70%);
-  clip-path: polygon(100% 0, 0 100%, 100% 100%);
-  box-shadow: -2px -2px 3px rgba(120, 100, 60, 0.16);
-  border-bottom-right-radius: 6px;
-}
-
-/* 折痕阴影三角 */
-.note-card::before {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 26px;
-  height: 26px;
-  background: linear-gradient(
-    135deg,
-    transparent 48%,
-    rgba(120, 100, 60, 0.25) 52%
-  );
-  border-bottom-right-radius: 6px;
+.note-card:hover {
+  box-shadow:
+    0 1px 3px rgba(74, 66, 56, 0.1),
+    0 12px 32px rgba(74, 66, 56, 0.18);
 }

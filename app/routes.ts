@@ -14,8 +14,6 @@ export default [
   route("api/notes", "routes/api/notes.tsx"),
   route("api/notes/:id", "routes/api/note.tsx"),
   route("api/notes/:id/position", "routes/api/note-position.tsx"),
-  route("api/links", "routes/api/links.tsx"),
-  route("api/links/:id", "routes/api/link.tsx"),
   route("api/invitations", "routes/api/invitations.tsx"),
   route("api/invitations/inbox", "routes/api/invitations.inbox.tsx"),
   route("api/invitations/:id", "routes/api/invitation.tsx"),

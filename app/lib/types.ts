@@ -36,16 +36,6 @@ export interface Note {
   updatedAt: number;
 }
 
-export interface Link {
-  id: string;
-  boardId: string;
-  fromNoteId: string;
-  toNoteId: string;
-  color: string;
-  thickness: number;
-  createdAt: number;
-}
-
 export interface Invitation {
   id: string;
   boardId: string;
@@ -68,7 +58,7 @@ export interface UserSettings {
   defaultBoardId: string | null;
 }
 
-export type PatchEntity = "note" | "link" | "board";
+export type PatchEntity = "note" | "board";
 
 export interface PatchEvent {
   type: "patch";

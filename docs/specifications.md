@@ -10,15 +10,14 @@
 
 ### 1.1 愿景
 
-co-note 是一款"自由钉在无限桌面上的共享便笺"。用户打开页面后看到的是一块无限大小的背景板(下文统一称 **背景板**), 可以在任意位置"钉"上便笺、在便笺之间连线, 与受邀的好友共同编辑、实时同步, 用于记录生活点滴。
+co-note 是一款"自由钉在无限桌面上的共享便笺"。用户打开页面后看到的是一块无限大小的背景板(下文统一称 **背景板**), 可以在任意位置"钉"上便笺, 与受邀的好友共同编辑、实时同步, 用于记录生活点滴。
 
 ### 1.2 核心概念
 
 | 术语 | 含义 |
 | --- | --- |
 | 背景板 (Board) | 无限大小、可平移缩放的 2D 画布, 是一块"桌面背景板" |
-| 便笺 (Note) | 钉在背景板上的纸张质感卡片, 内含 Markdown 内容与快捷状态(心情/天气/疲惫/进食) |
-| 连线 (Link) | 从一张便笺的大头钉拖拽到另一张便笺的大头钉形成的曲线, 可设置颜色与粗细 |
+| 便笺 (Note) | 钉在背景板上的简洁矩形卡片, 内含 Markdown 内容与快捷状态(心情/天气/疲惫/进食) |
 | 用户 (User) | 通过 Google 账号登录, 拥有唯一用户 ID, 通过 ID 邀请他人 |
 | 收件箱 (Inbox) | 收到邀请后待处理的列表, 接受后进入对方背景板 |
 | 权限 (Role) | `editor` 编辑者 / `viewer` 观看者 |
@@ -61,7 +60,7 @@ co-note 是一款"自由钉在无限桌面上的共享便笺"。用户打开页�
 | Google Fonts: Patrick Hand | 英文字体 | `https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap` |
 | 本地字体: LeMiXiaoNaiPaoTi | 中文字体 | `assets/LeMiXiaoNaiPaoTi.TTF` (已存在) |
 
-说明: 无限画布、拖拽、连线、捏合手势均 **自研实现**(原生 Pointer Events + CSS transform), 不引入重画布库, 保持代码可控与体积小巧。
+说明: 无限画布、拖拽、捏合手势均 **自研实现**(原生 Pointer Events + CSS transform), 不引入重画布库, 保持代码可控与体积小巧。
 
 #### 开发依赖 (devDependencies)
 
@@ -235,7 +234,9 @@ co-note 是一款"自由钉在无限桌面上的共享便笺"。用户打开页�
 | created_at | INTEGER | NOT NULL | 创建时间 |
 | updated_at | INTEGER | NOT NULL | 最近修改时间 |
 
-#### `links` — 便笺连线
+#### `links` — 便笺连线 (已弃用, 保留表结构)
+
+> 连线功能已于 2026-08-04 移除, 该表不再读写。
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -425,27 +426,9 @@ CREATE INDEX idx_invites_invitee ON invitations(invitee_id, status);
 - 权限: 该板 **editor**
 - 实现: 事务内删除 note 及其关联 links; 成功后广播 patch。
 
-### 6.6 连线
+### 6.6 ~~连线~~ — 已移除 (2026-08-04)
 
-#### `POST /api/links` — 创建连线
-
-- 输入: `{ boardId, fromNoteId, toNoteId, color?: string, thickness?: number }` (默认 `#e11d48` / 2)
-- 返回: `{ link: { id, fromNoteId, toNoteId, color, thickness } }`
-- 权限: 该板 **editor**; 两便笺必须同属该板
-- 实现: 校验两端便笺存在且 from ≠ to; 插入 links; 广播 patch。
-
-#### `PATCH /api/links/:id` — 修改连线样式
-
-- 输入: `{ color?: string, thickness?: number }`
-- 返回: `{ link }`
-- 权限: 该板 **editor**
-- 实现: 更新; 广播 patch。
-
-#### `DELETE /api/links/:id` — 删除连线
-
-- 输入: 路径参数
-- 返回: `{ ok: true }`
-- 实现: 删除; 广播 patch。
+连线相关 API (`POST /api/links`, `PATCH/DELETE /api/links/:id`) 已随功能移除, 不再提供。
 
 ### 6.7 图片
 
@@ -492,7 +475,7 @@ CREATE INDEX idx_invites_invitee ON invitations(invitee_id, status);
 ```ts
 type PatchEvent = {
   type: "patch";
-  entity: "note" | "link" | "board";
+  entity: "note" | "board";
   id: string;
   changes: Record<string, unknown>;
   updatedAt: number;
@@ -511,7 +494,6 @@ type PatchEvent = {
 | --- | --- | --- | --- |
 | 查看背景板 / 数据 | ✔ | ✔ | ✔ |
 | 创建/编辑/移动/删除便笺 | ✔ | ✔ | ✘ |
-| 创建/修改/删除连线 | ✔ | ✔ | ✘ |
 | 上传图片 | ✔ | ✔ | ✘ |
 | 发起邀请 | ✔ | ✔ | ✘ |
 | 重命名背景板 / 移除成员 | ✔ | ✘ | ✘ |
@@ -536,16 +518,15 @@ type PatchEvent = {
 - 移动端: Pointer Events 记录双指触点距离比 → 捏合缩放; 单指 → 平移; 容器 `touch-action: none` 禁用浏览器手势;
 - 空白区域 pointerdown 启动平移 (设置 pointer capture), pointerup 结束。
 
-### F2 便笺卡片 (纸张质感 + 大头钉 + 折角)
+### F2 便笺卡片 (极简矩形卡片)
 
-**需求:** 背景板上的便笺呈纸张质感: 顶部大头钉, 左下/右下角有一角折起的效果, 使其"像一张便笺而非卡片"。
+**需求:** 背景板上的便笺为固定尺寸的简洁矩形卡片 (高而窄), 无钉子、无折角等装饰; 整体单色设计, 靠亮度差与阴影体现层次。
 
-**UI 表现:** 米黄色便笺纸 (`#fff9c4` 系), 轻微纸张纹理 (CSS 渐变噪点)、柔和阴影; 顶部居中或偏左一枚圆形图钉 (SVG/CSS, 带高光与投影, 可被 F6 拖拽); 右下角折角 (三角折叠 + 阴影折痕)。
+**UI 表现:** 固定 240×320px (宽×高); 单色浅暖白 `#fefcf5`, 1px 同色系描边 (`rgba(74,66,56,0.12)`), 双层柔和阴影 (`0 1px 2px` + `0 8px 24px`), hover 阴影加深; 内容超出裁剪; 底部固定快捷状态栏 (心情/天气/疲惫/进食), 以细分隔线区分。
 
 **实现计划:**
-- `NoteCard` 组件: 尺寸由 `note.width` 决定, 内容渲染 `react-markdown`;
-- 折角: `::after` 绝对定位右下角, `background: linear-gradient(225deg, ...)` 绘制折叠三角, `box-shadow` 制造折痕投影; 用 `clip-path` 切出缺角;
-- 图钉: `Pin` 组件 (绝对定位在卡片顶部), 视觉 ~14px 圆形 + 高光圆点 + 投影; 可选中态 (悬停放大);
+- `NoteCard` 组件: 固定尺寸 (常量 `NOTE_WIDTH=240`, `NOTE_HEIGHT=320`), flex 纵向布局 — 缩略图堆叠 (若有) + 内容区 `flex-1 overflow-hidden` + 状态栏 `shrink-0`;
+- 样式集中于 `app.css` 的 `.note-card` (无渐变、无伪元素装饰);
 - 点击便笺主体 → 跳转编辑页 (F5); 拖拽主体 → 移动 (F4)。
 
 ### F3 便笺缩略图与堆叠
@@ -589,17 +570,9 @@ type PatchEvent = {
 - 快捷状态: 状态变更 → debounce 后 `PATCH /api/notes/:id` (服务端经 Pusher 广播); 编辑中他人变更通过 Pusher patch 合并进表单 (光标位置保留需谨慎处理, MVP 接受覆盖);
 - 保存策略: 纯实时 (每处编辑即存), 无显式"保存"按钮; 顶部显示最近同步时间。
 
-### F6 图钉连线 (Link)
+### F6 ~~图钉连线 (Link)~~ — 已移除 (2026-08-04 决策)
 
-**需求:** 按住便笺顶部大头钉拖到另一便笺的大头钉上松手, 创建一条连线 (如同两枚图钉间绷了根线); 默认红色, 可修改颜色与粗细。
-
-**UI 表现:** 连线为 SVG 三次贝塞尔曲线 (从图钉锚点到图钉锚点, 带轻微下垂感), 默认 `#e11d48` 2px; 拖拽过程中显示从起点到光标的橡皮筋线; 悬停/选中连线显示节点与设置浮层 (颜色色板 + 粗细滑块), 可删除。
-
-**实现计划:**
-- SVG 层: world 层内 `<svg>` 覆盖整个可视区 (视口变换作用于世界坐标), 每条线 `<path d="M x1,y1 C ...">`, 端点 = 两张便笺图钉的锚点坐标 (由 note 位置 + 便笺宽度计算);
-- 手势: pointerdown 于 Pin → 启动连线拖拽 (world 坐标跟踪光标), 实时渲染临时贝塞尔; pointerup 命中另一便笺的 Pin 热区 (扩大 12px 命中范围) → `POST /api/links`; 否则取消;
-- 交互编辑: 点击线条选中 → 浮层 (lucide 色板圆点 + range 滑块 1~6px + 删除按钮) → `PATCH /api/links/:id` / `DELETE` (服务端经 Pusher 广播);
-- 便笺移动时连线端点跟随 (由坐标推导, 无需存储端点)。
+**说明:** 应需求变更, 连线功能 (图钉拖拽连线、连线样式编辑) 已整体移除 — 删除前端连线层组件、连线 API 路由与数据层函数; `links` 表结构保留于迁移中但不再使用。
 
 ### F7 邀请、权限与收件箱
 
@@ -704,7 +677,7 @@ export default [
 
 ### 9.2 视觉风格 (简约风)
 
-- 色彩: 背景板米纸色 `#f5f0e1`; 便笺米黄 `#fff9c4` 渐变; 连线默认红 `#e11d48`; 蓝色仅用于拖拽 mask (`#3b82f6`); 文字暖灰 `#4a4238`;
+- 色彩: 背景板米纸色 `#f5f0e1`; 便笺单色浅暖白 `#fefcf5` (无渐变); 蓝色仅用于拖拽 mask (`#3b82f6`); 文字暖灰 `#4a4238`;
 - 阴影: 便笺 `0 6px 18px rgba(120,100,60,.25)`, 图钉带投影; 圆角克制 (便笺 6px, 控件 10px);
 - 动效: 过渡 150ms ease; 拖拽/缩放不引入动画, 保证跟手;
 - 图标: lucide-react 细线条, 1.5px stroke。
@@ -804,7 +777,7 @@ pnpm run build && pnpm dlx wrangler deploy
 | M1 脚手架 | CF 集成 (vite plugin / wrangler / workers/app.ts), D1 迁移初始化, Google OAuth 登录 (login/callback/logout), `GET/PATCH /api/user`, boards 基础 CRUD | Google 登录可用, 可创建/列出背景板 |
 | M2 画布与便笺 | F1 无限画布 (缩放/平移), F2 便笺卡片视觉 (纸张/图钉/折角), F4 拖拽 + 蓝色 mask | 桌面端完整手势操作, 移动端双指缩放 |
 | M3 编辑器 | F5 Markdown 编辑/预览 + 图片上传 (R2) + 心情/天气/疲惫/进食, F3 缩略图堆叠 | 便笺内可编辑与插入图片, 卡片显示堆叠缩略图 |
-| M4 连线 | F6 图钉拖拽连线、颜色/粗细编辑、删除 | 可创建/修改/删除连线 |
+| M4 打磨画布 | 便笺卡片样式打磨 (极简单色设计) | 便笺 240×320 固定尺寸, 层次清晰 |
 | M5 协作 | F7 邀请/收件箱/权限, F8 背景板选择与默认板 | 双账号互邀、viewer 只读生效 |
 | M6 实时 | F9 Pusher 实时同步 (频道鉴权/事件广播/重连补齐) | 两浏览器同板内容/位置/连线实时互相同步 |
 | M7 打磨 | 移动端手势完善、toast/空态/加载态、部署上线 | 全功能可在线上稳定使用 |
@@ -822,6 +795,7 @@ pnpm run build && pnpm dlx wrangler deploy
 | 5 | Google OAuth 而非无密码 | 身份可信、免注册、自带头像与邮箱; ID 仍用于互相邀请 | 需在 Google Cloud Console 配置 OAuth Client; 会话 30 天 |
 | 6 | LWW 冲突策略 | 两人同时编辑同一便笺时后写覆盖, 记录 updated_at | MVP 可接受; 若需协同文本, 引入 CRDT (如 yjs) 是可选升级路径 |
 | 7 | 默认 SSO (SSR) | Framework 模式默认 SSR; Cloudflare 插件要求 SSR | 不使用 SPA 模式 |
+| 8 | 移除连线功能, 便笺极简单色化 (2026-08-04) | 需求变更: 去掉钉子/折痕/连线装饰, 采用固定 240×320 单色浅暖白卡片, 以亮度差+阴影体现层次 | `links` 表保留不读; 如需恢复可依 git 历史回退 |
 
 ---
 
