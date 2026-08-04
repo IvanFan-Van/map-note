@@ -1,15 +1,23 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "LeMiXiaoNaiPaoTi";
+  src: url("../../assets/LeMiXiaoNaiPaoTi.TTF") format("truetype");
+  font-display: swap;
+}
+
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: "Patrick Hand", "LeMiXiaoNaiPaoTi", ui-sans-serif, system-ui,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+    "Noto Color Emoji";
+  --color-board: #f5f0e1;
+  --color-note: #fff9c4;
+  --color-warm: #4a4238;
 }
 
 html,
 body {
-  @apply bg-white dark:bg-gray-950;
-
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  }
+  @apply bg-board text-warm;
+  font-family: var(--font-sans);
+  letter-spacing: 0.02em;
 }
