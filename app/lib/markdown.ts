@@ -36,6 +36,7 @@ export type InlineToken =
       type: "annotate";
       annotation: AnnotationType;
       multiline: boolean;
+      color?: string;
       children: InlineToken[];
     };
 
@@ -209,18 +210,27 @@ export function parseInline(src: string): InlineToken[] {
       continue;
     }
     const inner = src.slice(contentStart, closeIdx);
-    const children = parseInline(inner);
+    // 颜色前缀: #hex6| (向后兼容 — 无前缀的普通标记不受影响)
+    let color: string | undefined;
+    let innerText = inner;
+    const colorMatch = /^#([0-9a-fA-F]{6})\|(.*)$/s.exec(inner);
+    if (colorMatch) {
+      color = `#${colorMatch[1].toLowerCase()}`;
+      innerText = colorMatch[2];
+    }
+    const children = parseInline(innerText);
     if (rule.kind === "bold") {
       tokens.push({ type: "bold", children });
     } else if (rule.kind === "italic") {
       tokens.push({ type: "italic", children });
     } else if (rule.kind === "code") {
-      tokens.push({ type: "code", text: inner });
+      tokens.push({ type: "code", text: innerText });
     } else {
       tokens.push({
         type: "annotate",
         annotation: rule.annotation!,
-        multiline: open.length >= 3 || inner.includes("\n"),
+        multiline: open.length >= 3 || innerText.includes("\n"),
+        color,
         children,
       });
     }
@@ -291,22 +301,31 @@ export function findMarker(annotation: AnnotationType): AnnotationMarker {
   return ANNOTATION_MARKERS.find((m) => m.annotation === annotation)!;
 }
 
-/** 判断文本是否已被某注解标记包裹; 返回 { wrapped, multiline, inner } */
+/** 判断文本是否已被某注解标记包裹; 返回 { wrapped, multiline, inner, color } */
 export function detectAnnotation(
   text: string,
   annotation: AnnotationType,
-): { wrapped: boolean; multiline: boolean; inner: string } {
+): { wrapped: boolean; multiline: boolean; inner: string; color?: string } {
   const m = findMarker(annotation);
+  const stripColor = (inner: string): { inner: string; color?: string } => {
+    const cm = /^#([0-9a-fA-F]{6})\|(.*)$/s.exec(inner);
+    if (cm) return { inner: cm[2], color: `#${cm[1].toLowerCase()}` };
+    return { inner };
+  };
   // 先检测三连 (multiline) 标记, 再检测单标记 (三连同时满足单标记的前缀/后缀)
   if (
     text.startsWith(m.multilineOpen) &&
     text.endsWith(m.multilineClose) &&
     text.length > m.multilineOpen.length + m.multilineClose.length
   ) {
-    return { wrapped: true, multiline: true, inner: text.slice(m.multilineOpen.length, -m.multilineClose.length) };
+    const { inner, color } = stripColor(
+      text.slice(m.multilineOpen.length, -m.multilineClose.length),
+    );
+    return { wrapped: true, multiline: true, inner, color };
   }
   if (text.startsWith(m.open) && text.endsWith(m.close) && text.length > m.open.length + m.close.length) {
-    return { wrapped: true, multiline: false, inner: text.slice(m.open.length, -m.close.length) };
+    const { inner, color } = stripColor(text.slice(m.open.length, -m.close.length));
+    return { wrapped: true, multiline: false, inner, color };
   }
   return { wrapped: false, multiline: false, inner: text };
 }
@@ -316,13 +335,15 @@ export function toggleAnnotation(
   text: string,
   annotation: AnnotationType,
   multiline = false,
-): { text: string; multiline: boolean } {
+  color?: string,
+): { text: string; multiline: boolean; color?: string } {
   const m = findMarker(annotation);
   const det = detectAnnotation(text, annotation);
   if (det.wrapped) {
-    return { text: det.inner, multiline: false };
+    return { text: det.inner, multiline: false, color: det.color };
   }
   const open = multiline ? m.multilineOpen : m.open;
   const close = multiline ? m.multilineClose : m.close;
-  return { text: open + text + close, multiline };
+  const prefix = color ? `#${color.replace(/^#/, "")}|` : "";
+  return { text: open + prefix + text + close, multiline, color };
 }

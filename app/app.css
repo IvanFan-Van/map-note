@@ -158,4 +158,63 @@
     box-shadow: 0 1px 3px rgba(74, 66, 56, 0.1),
       0 12px 32px rgba(74, 66, 56, 0.18);
   }
+
+  /* TipTap 编辑器: 行块式视觉 (每行一块, 与便笺卡片渲染一致) */
+  .tiptap {
+    outline: none;
+    cursor: text;
+  }
+
+  .tiptap .ProseMirror {
+    outline: none;
+    min-height: 100%;
+  }
+
+  .tiptap .ProseMirror > * {
+    margin: 0;
+    line-height: 1.625;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    min-height: 1.5em;
+  }
+
+  .tiptap .ProseMirror > * + * {
+    margin-top: 0;
+  }
+
+  .tiptap .ProseMirror h1,
+  .tiptap .ProseMirror h2,
+  .tiptap .ProseMirror h3 {
+    font-weight: 700;
+  }
+
+  .tiptap .ProseMirror h1 {
+    font-size: 1.25rem;
+  }
+
+  .tiptap .ProseMirror h2 {
+    font-size: 1.125rem;
+  }
+
+  .tiptap .ProseMirror ul,
+  .tiptap .ProseMirror ol {
+    padding-left: 1.5em;
+  }
+
+  .tiptap .ProseMirror blockquote {
+    border-left: 2px solid rgba(74, 66, 56, 0.3);
+    padding-left: 0.6em;
+    font-style: italic;
+    color: rgba(74, 66, 56, 0.8);
+  }
+
+  .tiptap .ProseMirror img {
+    max-width: 100%;
+    border-radius: 6px;
+    border: 1px solid rgba(74, 66, 56, 0.1);
+  }
+
+  .tiptap .ProseMirror .ProseMirror-selectednode {
+    outline: 2px solid #3b82f6;
+  }
 }

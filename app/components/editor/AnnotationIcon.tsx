@@ -3,9 +3,9 @@ import { renderAnnotation } from "rough-notation/lib/render.js";
 import type { RoughAnnotationConfig } from "rough-notation/lib/model.js";
 import type { AnnotationType } from "~/lib/markdown";
 
-/** 各注解的 rough 绘制色 (与 Markdown.tsx 的 ANNOTATION_STYLE 保持一致) */
+/** 各注解的 rough 绘制色 (工具栏深底背景上用浅色系, 与正文 ANNOTATION_STYLE 分离) */
 const ICON_COLOR: Record<AnnotationType, string> = {
-  underline: "#4a4238",
+  underline: "#f5f0e1",
   box: "#3b82f6",
   circle: "#3b82f6",
   highlight: "#fde68a",
@@ -45,7 +45,7 @@ export function AnnotationIcon({
           { x: 3, y: y - 1.5, w: 18, h: 3 },
           {
             type: "strike-through",
-            color: color ?? "#4a4238",
+            color: color ?? "#f5f0e1",
             strokeWidth: 1.4,
             animate: false,
           },

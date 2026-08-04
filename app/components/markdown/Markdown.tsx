@@ -10,7 +10,7 @@ import {
   type InlineToken,
 } from "~/lib/markdown";
 
-const ANNOTATION_STYLE: Record<
+export const ANNOTATION_STYLE: Record<
   AnnotationType,
   { type: RoughAnnotationType; color: string; strokeWidth: number; brackets?: RoughAnnotationConfig["brackets"] }
 > = {
@@ -137,7 +137,7 @@ function Inline({ tokens }: { tokens: InlineToken[] }) {
             );
           case "annotate":
             return (
-              <Annotation key={i} type={t.annotation} multiline={t.multiline} textKey={inlineText(t.children)}>
+              <Annotation key={i} type={t.annotation} multiline={t.multiline} color={t.color} textKey={inlineText(t.children)}>
                 <Inline tokens={t.children} />
               </Annotation>
             );
@@ -150,11 +150,13 @@ function Inline({ tokens }: { tokens: InlineToken[] }) {
 function Annotation({
   type,
   multiline,
+  color,
   textKey,
   children,
 }: {
   type: AnnotationType;
   multiline: boolean;
+  color?: string;
   textKey: string;
   children: React.ReactNode;
 }) {
@@ -166,13 +168,14 @@ function Annotation({
     const style = ANNOTATION_STYLE[type];
     const annotation = annotate(el, {
       ...style,
+      color: color ?? style.color,
       padding: [2, 2],
       multiline,
       animate: false,
     });
     annotation.show();
     return () => annotation.remove();
-  }, [type, multiline, textKey]);
+  }, [type, multiline, color, textKey]);
 
   return (
     <span ref={ref} data-annotation={type}>
