@@ -66,3 +66,11 @@
   - `package.json`: 新增 `@noble/hashes`; `vite.config.ts`: 预打包列表补充 @noble/hashes 子路径
 - **验证:** 首页/编辑器页 200; 字体资源 `/assets/LeMiXiaoNaiPaoTi.TTF` 200 (4.6MB); 创建便笺 200 且 Pusher 真实触发无错误; 日志零错误 (无 No route matches / Denied ID / pre-bundle / trigger failed); typecheck ✓
 - **最终结果:** 三个上报 bug 全部修复, 附带修复 Pusher 在 Workers 环境的兼容性问题。
+
+## 2026-08-04 — Bug 修复: 拖拽平移累积偏差 (方向切换失效)
+
+- **修改文件:**
+  - `app/routes/board.tsx`: 画布拖拽平移从"增量累加绝对偏移"改为**绝对定位** — `viewport.viewX = 按下时viewX + (当前clientX - 按下时clientX)`, 不再逐次累加
+- **原因:** `panBy()` 是增量式 (每次加 dx), 而拖拽传入的 `clientX - startX` 是相对起点的绝对偏移; 每次 move 事件都把绝对偏移再累加一次 → 偏移随 move 次数膨胀, 且中途反向拖拽时视口仍沿累积方向移动
+- **保留:** `panBy` 仍用于滚轮平移 (wheel delta 本身是增量, 语义正确); 便笺拖拽/双指捏合原本就是绝对/增量基准正确, 未受影响
+- **最终结果:** 拖拽方向切换立即反向, 无累积偏差; typecheck ✓, 页面 200 ✓。

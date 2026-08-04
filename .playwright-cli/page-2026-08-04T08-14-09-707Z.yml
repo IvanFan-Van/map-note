@@ -1,0 +1,9 @@
+- generic [ref=f1e107]:
+  - banner [ref=f1e108]:
+    - link "←" [ref=f1e109] [cursor=pointer]:
+      - /url: /
+    - heading "测试板B" [level=1] [ref=f1e110]
+    - button "☆" [ref=f1e111]
+    - generic [ref=f1e112]: 连接中
+    - button "邀请" [ref=f1e114]
+  - generic [ref=f1e115]: 100%

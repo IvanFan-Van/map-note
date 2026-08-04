@@ -1,0 +1,34 @@
+- main [ref=f1e118]:
+  - generic [ref=f1e119]:
+    - heading "co-note" [level=1] [ref=f1e120]
+    - generic [ref=f1e121]:
+      - button "收件箱" [ref=f1e123]
+      - button "测 测试用户" [ref=f1e128]:
+        - generic [ref=f1e129]: 测
+        - generic [ref=f1e130]: 测试用户
+  - generic [ref=f1e131]:
+    - heading "我的背景板" [level=2] [ref=f1e132]
+    - button "+ 新建" [ref=f1e133]
+  - list [ref=f1e134]:
+    - listitem [ref=f1e135]:
+      - link "测试板A ☆ 编辑者 2 位成员 2 张便笺 1月1日" [ref=f1e136] [cursor=pointer]:
+        - /url: /b/boardAAA
+        - generic [ref=f1e137]:
+          - heading "测试板A" [level=3] [ref=f1e138]
+          - button "☆" [ref=f1e139]
+        - generic [ref=f1e140]:
+          - generic [ref=f1e141]: 编辑者
+          - generic [ref=f1e142]: 2 位成员
+          - generic [ref=f1e143]: 2 张便笺
+          - generic [ref=f1e144]: 1月1日
+    - listitem [ref=f1e145]:
+      - link "测试板B ☆ 编辑者 1 位成员 0 张便笺 1月1日" [ref=f1e146] [cursor=pointer]:
+        - /url: /b/boardBBB
+        - generic [ref=f1e147]:
+          - heading "测试板B" [level=3] [ref=f1e148]
+          - button "☆" [ref=f1e149]
+        - generic [ref=f1e150]:
+          - generic [ref=f1e151]: 编辑者
+          - generic [ref=f1e152]: 1 位成员
+          - generic [ref=f1e153]: 0 张便笺
+          - generic [ref=f1e154]: 1月1日

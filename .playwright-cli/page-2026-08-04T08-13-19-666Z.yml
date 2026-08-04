@@ -1,0 +1,6 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - heading "co-note" [level=1] [ref=e4]
+    - paragraph [ref=e5]: 一块自由钉便笺的共享桌面
+  - link "使用 Google 登录" [ref=e6] [cursor=pointer]:
+    - /url: /auth/login

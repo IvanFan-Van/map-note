@@ -1,0 +1,14 @@
+- generic [ref=f1e155]:
+  - banner [ref=f1e156]:
+    - link "←" [ref=f1e157] [cursor=pointer]:
+      - /url: /
+    - heading "测试板A" [level=1] [ref=f1e158]
+    - button "☆" [ref=f1e159]
+    - generic [ref=f1e160]: 已连接
+    - generic "测试用户" [ref=f1e163]: 测
+    - button "邀请" [ref=f1e164]
+  - generic [ref=f1e165]:
+    - generic:
+      - generic: 第一张便笺\n内容测试
+      - paragraph [ref=f1e184] [cursor=pointer]: 第二张便笺
+    - generic [ref=f1e185]: 100%

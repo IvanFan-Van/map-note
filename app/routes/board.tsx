@@ -87,6 +87,7 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const notesMap = useBoardStore((s) => s.notes);
   const linksMap = useBoardStore((s) => s.links);
   const viewport = useBoardStore((s) => s.viewport);
+  const setViewport = useBoardStore((s) => s.setViewport);
   const zoomAt = useBoardStore((s) => s.zoomAt);
   const panBy = useBoardStore((s) => s.panBy);
   const dragNote = useBoardStore((s) => s.dragNote);
@@ -227,7 +228,15 @@ export default function Board({ loaderData }: Route.ComponentProps) {
       return;
     }
     if (panRef.current) {
-      panBy(e.clientX - panRef.current.startX, e.clientY - panRef.current.startY);
+      // 绝对定位: viewport = 按下时视口 + 当前指针相对起点的偏移。
+      // 不能用 panBy 增量累加绝对偏移 (会随 move 次数累积偏差, 且方向切换时行为错误)
+      const vp = useBoardStore.getState().viewport;
+      const pan = panRef.current;
+      setViewport({
+        ...vp,
+        viewX: pan.viewX + (e.clientX - pan.startX),
+        viewY: pan.viewY + (e.clientY - pan.startY),
+      });
     }
   };
 
