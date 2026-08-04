@@ -2,6 +2,20 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-04 — 删除功能 + 编辑器空隙 + rough 注解图标 + Pusher 签名修复
+
+- **修改文件:**
+  - `app/server/db.ts`: 新增 `deleteBoard` (batch 级联: links → notes → invitations → board_members → user_settings 默认板置 NULL → boards)
+  - `app/routes/api/board.tsx`: action 增加 `DELETE` 分支 (编辑者可删, 非成员 404 / 观看者 403)
+  - `app/routes/home.tsx`: 背景板卡片右上角红色垃圾桶按钮 (编辑者可见; preventDefault+stopPropagation; confirm 后删除, 列表 revalidate, 默认板置空)
+  - `app/components/board/NoteCard.tsx`: 便笺卡片右上角红色垃圾桶按钮 (仅编辑者; pointerdown stopPropagation 防拖拽; confirm + 乐观移除 + 失败回滚), 经 `DELETE /api/notes/:id` + `broadcastPatch(deleted)` 实时同步
+  - `app/routes/note.tsx`: 行 textarea 加 `display: block` — 消除 inline-block baseline 空隙; 浮动工具栏改用 `AnnotationIcon` (激活态变白)
+  - `app/components/editor/AnnotationIcon.tsx` (新建): 用 rough-notation 内部导出的 `renderAnnotation(svg, rect, config, …)` 在 20×20 SVG 中绘制注解效果图标 (与正文注解同引擎同色: 下划线/方框/圆圈/高亮/删除线/划掉/括号/多行三线; seed 固定防重渲染抖动)
+  - `app/server/pusher.ts`: **修复 body_md5 签名 bug** — Pusher REST API 的 `body_md5` 必须是「整个请求体」的 MD5 (含 name/channels/data 包装), 原实现只算了 data 的 MD5, 导致每次触发 400 被 catch 吞掉, **实时同步从未生效过**
+  - `package.json`: 显式安装 `roughjs` (rough-notation 上游 bug — roughjs 写在 devDependencies, pnpm 下 render.js 无法解析)
+- **验证:** 双用户 Playwright 实测 — 删除便笺后第二用户未刷新实时 4→3; 删除背景板后列表即时更新; 编辑器行间距 6px vs 8px (原为明显空隙); 工具栏 8 个 rough 图标颜色/线宽与注解样式一致; typecheck ✓
+- **最终结果:** 删除功能 + 编辑器体验修复 + 注解风格图标落地; 顺带修复长期潜伏的实时同步失效 (Pusher body_md5 签名错误)。
+
 ## 2026-08-04 — 样式: app.css 显式全局初始化 + 分层重构
 
 - **修改文件:** `app/app.css`
