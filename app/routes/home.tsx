@@ -345,23 +345,52 @@ function BoardsView({
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-2xl leading-tight">{b.name}</h3>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void jsonApi(`/api/boards/${b.id}?action=default`, "POST", {}).then(() =>
-                        setDefaultBoardId(b.id),
-                      );
-                    }}
-                    className={`shrink-0 text-lg ${
-                      b.id === defaultBoardId
-                        ? "text-amber-500"
-                        : "text-warm/30 hover:text-amber-400"
-                    }`}
-                    title={b.id === defaultBoardId ? "当前默认背景板" : "设为默认背景板"}
-                  >
-                    {b.id === defaultBoardId ? "★" : "☆"}
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {b.role === "editor" && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!window.confirm(`删除背景板「${b.name}」? 所有便笺与成员记录将一并删除。`)) return;
+                          void jsonApi<{ boardId?: string }>(`/api/boards/${b.id}`, "DELETE")
+                            .then(() => {
+                              if (b.id === defaultBoardId) setDefaultBoardId(null);
+                              revalidator.revalidate();
+                            })
+                            .catch((err) =>
+                              alert(err instanceof Error ? err.message : "删除失败"),
+                            );
+                        }}
+                        className="text-warm/30 hover:text-red-500 text-lg"
+                        title="删除背景板"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                        </svg>
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void jsonApi(`/api/boards/${b.id}?action=default`, "POST", {}).then(() =>
+                          setDefaultBoardId(b.id),
+                        );
+                      }}
+                      className={`shrink-0 text-lg ${
+                        b.id === defaultBoardId
+                          ? "text-amber-500"
+                          : "text-warm/30 hover:text-amber-400"
+                      }`}
+                      title={b.id === defaultBoardId ? "当前默认背景板" : "设为默认背景板"}
+                    >
+                      {b.id === defaultBoardId ? "★" : "☆"}
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-4 flex items-center gap-4 text-sm text-warm/60">
                   <span>{b.role === "editor" ? "编辑者" : "观看者"}</span>

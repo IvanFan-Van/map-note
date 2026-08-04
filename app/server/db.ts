@@ -145,6 +145,19 @@ export async function getBoardRole(
   return row?.role ?? null;
 }
 
+export async function deleteBoard(env: Env, boardId: string): Promise<void> {
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM links WHERE board_id = ?`).bind(boardId),
+    env.DB.prepare(`DELETE FROM notes WHERE board_id = ?`).bind(boardId),
+    env.DB.prepare(`DELETE FROM invitations WHERE board_id = ?`).bind(boardId),
+    env.DB.prepare(`DELETE FROM board_members WHERE board_id = ?`).bind(boardId),
+    env.DB.prepare(
+      `UPDATE user_settings SET default_board_id = NULL, updated_at = ? WHERE default_board_id = ?`,
+    ).bind(now(), boardId),
+    env.DB.prepare(`DELETE FROM boards WHERE id = ?`).bind(boardId),
+  ]);
+}
+
 // ---------- 便笺 ----------
 
 const NOTE_SELECT = `id, board_id, author_id, content, pos_x, pos_y, z_index, width, mood, weather, fatigue, diet, created_at, updated_at`;

@@ -21,8 +21,13 @@ export async function triggerPusher(
   event: string,
   data: unknown,
 ): Promise<void> {
-  const body = JSON.stringify(data);
-  const bodyMd5 = bytesToHex(md5(new TextEncoder().encode(body)));
+  // body_md5 是「整个 HTTP 请求体」的 MD5 (data 字段为 JSON 字符串, 由客户端 parse)
+  const payload = JSON.stringify({
+    name: event,
+    channels: [channel],
+    data: JSON.stringify(data),
+  });
+  const bodyMd5 = bytesToHex(md5(new TextEncoder().encode(payload)));
   const timestamp = Math.floor(Date.now() / 1000);
   const queryBase = `auth_key=${encodeURIComponent(env.PUSHER_KEY)}&auth_timestamp=${timestamp}&auth_version=1.0&body_md5=${bodyMd5}`;
   const stringToSign = `POST\n/apps/${env.PUSHER_APP_ID}/events\n${queryBase}`;
@@ -33,11 +38,7 @@ export async function triggerPusher(
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: event,
-      channels: [channel],
-      data: body,
-    }),
+    body: payload,
   });
   if (!res.ok) {
     throw new Error(`Pusher trigger failed: ${res.status} ${await res.text()}`);

@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { jsonApi } from "~/lib/api";
 import { Markdown } from "~/components/markdown/Markdown";
 import { extractImages } from "~/lib/markdown";
 import type { Note } from "~/lib/types";
@@ -43,6 +44,19 @@ export const NoteCard = memo(function NoteCard({
   const startDragNote = useBoardStore((s) => s.startDragNote);
   const updateDragNote = useBoardStore((s) => s.updateDragNote);
   const endDragNote = useBoardStore((s) => s.endDragNote);
+  const removeNote = useBoardStore((s) => s.removeNote);
+  const upsertNote = useBoardStore((s) => s.upsertNote);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm("删除这张便笺?")) return;
+    const current = useBoardStore.getState().notes[note.id];
+    removeNote(note.id);
+    void jsonApi(`/api/notes/${note.id}`, "DELETE")
+      .catch(() => {
+        if (current) upsertNote(current);
+      });
+  };
 
   const isDragging = dragNote?.noteId === note.id;
   // NoteCard 位于已应用 translate+scale 的 world 层内, 直接使用世界坐标定位
@@ -114,6 +128,22 @@ export const NoteCard = memo(function NoteCard({
         onPointerDown={handleBodyDown}
         onDragStart={(e) => e.preventDefault()}
       >
+        {isEditor && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={handleDelete}
+            className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center text-red-500 hover:text-red-600 hover:bg-red-50"
+            title="删除便笺"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+            </svg>
+          </button>
+        )}
         {images.length > 0 && <ThumbnailStack images={images} />}
 
         <div className="flex-1 min-h-0 overflow-hidden px-4 pt-3 text-[15px] leading-relaxed break-words">

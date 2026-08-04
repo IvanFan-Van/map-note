@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, redirect } from "react-router";
+import { AnnotationIcon } from "~/components/editor/AnnotationIcon";
 import { Markdown } from "~/components/markdown/Markdown";
 import { jsonApi } from "~/lib/api";
 import {
@@ -57,15 +58,15 @@ const DIET_TEMPLATE = { key: "diet", label: "🍽 进食", template: "**进食**
 
 // ---------- 选中文本浮动工具栏 ----------
 
-const ANNOTATION_TOOLS: { id: AnnotationType | "multiline"; label: string; glyph: string }[] = [
-  { id: "underline", label: "下划线", glyph: "U̲" },
-  { id: "box", label: "方框", glyph: "▢" },
-  { id: "circle", label: "圆圈", glyph: "○" },
-  { id: "highlight", label: "高亮", glyph: "🖍" },
-  { id: "strike-through", label: "删除线", glyph: "S̶" },
-  { id: "crossed-off", label: "划掉", glyph: "✕" },
-  { id: "bracket", label: "括号", glyph: "〔〕" },
-  { id: "multiline", label: "多行", glyph: "⇕" },
+const ANNOTATION_TOOLS: { id: AnnotationType | "multiline"; label: string }[] = [
+  { id: "underline", label: "下划线" },
+  { id: "box", label: "方框" },
+  { id: "circle", label: "圆圈" },
+  { id: "highlight", label: "高亮" },
+  { id: "strike-through", label: "删除线" },
+  { id: "crossed-off", label: "划掉" },
+  { id: "bracket", label: "括号" },
+  { id: "multiline", label: "多行" },
 ];
 
 interface FloatToolState {
@@ -471,7 +472,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
                 onMouseUp={updateFloatTool}
                 onKeyUp={updateFloatTool}
                 placeholder="用 Markdown 记录此刻… 输入 # 标题, - 列表, 选中文本添加注解"
-                className="w-full bg-transparent outline-none resize-none text-base leading-relaxed font-sans py-0.5 min-h-[1.5em]"
+                className="block w-full bg-transparent outline-none resize-none text-base leading-relaxed font-sans py-0.5 min-h-[1.5em]"
                 style={{ height: "auto", minHeight: "1.5em", fieldSizing: "content" }}
               />
             ) : (
@@ -521,11 +522,11 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
                 if (t.id === "multiline") applyMultiline();
                 else applyTool(t.id);
               }}
-              className={`w-9 h-8 rounded-lg text-sm flex items-center justify-center transition-colors ${
-                isToolActive(t.id) ? "bg-blue-500 text-white" : "hover:bg-white/15"
+              className={`w-9 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                isToolActive(t.id) ? "bg-blue-500" : "hover:bg-white/15"
               }`}
             >
-              {t.glyph}
+              <AnnotationIcon type={t.id} color={isToolActive(t.id) ? "#ffffff" : undefined} />
             </button>
           ))}
           {toolPages > 1 && (

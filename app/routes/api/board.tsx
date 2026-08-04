@@ -1,5 +1,5 @@
 import { requireUser } from "~/server/auth";
-import { getBoardDetail, listNotes, setDefaultBoard } from "~/server/db";
+import { deleteBoard, getBoardDetail, listNotes, setDefaultBoard } from "~/server/db";
 import { assertMember } from "~/server/permissions";
 import type { Route } from "./+types/board";
 
@@ -25,6 +25,23 @@ export async function action({ request, context, params }: Route.ActionArgs) {
     await assertMember(env, params.id, user.id);
     await setDefaultBoard(env, user.id, params.id);
     return { ok: true, data: { defaultBoardId: params.id } };
+  }
+  if (request.method === "DELETE") {
+    const board = await getBoardDetail(env, params.id, user.id);
+    if (!board) {
+      return new Response(
+        JSON.stringify({ ok: false, error: { code: "NOT_FOUND", message: "背景板不存在" } }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (board.role !== "editor") {
+      return new Response(
+        JSON.stringify({ ok: false, error: { code: "FORBIDDEN", message: "观看者无删除权限" } }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    await deleteBoard(env, params.id);
+    return { ok: true, data: { boardId: params.id } };
   }
   return new Response(
     JSON.stringify({ ok: false, error: { code: "METHOD_NOT_ALLOWED", message: "不支持的请求方法" } }),

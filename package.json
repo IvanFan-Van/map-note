@@ -29,6 +29,7 @@
     "react-dom": "^19.2.7",
     "react-router": "^7.9.6",
     "rough-notation": "^0.5.1",
+    "roughjs": "^4.6.6",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
