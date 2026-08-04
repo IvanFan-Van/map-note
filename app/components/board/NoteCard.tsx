@@ -55,7 +55,8 @@ export const NoteCard = memo(function NoteCard({
     if (!isEditor) return;
     if (e.button !== 0) return;
     e.stopPropagation();
-    e.preventDefault();
+    // 注意: 不能 preventDefault() — 取消 pointerdown 会抑制后续兼容鼠标事件
+    // (click/dblclick), 导致双击无法进入编辑页; 文本选择由 select-none 阻止
     const noteEl = (e.currentTarget as HTMLElement).parentElement as HTMLElement;
     noteEl.setPointerCapture(e.pointerId);
     const vp = useBoardStore.getState().viewport;
@@ -93,6 +94,7 @@ export const NoteCard = memo(function NoteCard({
   return (
     <div
       className="absolute select-none"
+      draggable={false}
       style={{
         left: posX,
         top: posY,
@@ -106,6 +108,7 @@ export const NoteCard = memo(function NoteCard({
       <div
         className="note-card h-full w-full rounded-lg cursor-pointer flex flex-col"
         onPointerDown={handleBodyDown}
+        onDragStart={(e) => e.preventDefault()}
         onDoubleClick={() => onClick(note)}
       >
         {images.length > 0 && <ThumbnailStack images={images} />}
