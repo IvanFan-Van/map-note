@@ -128,3 +128,10 @@
   - `app/routes/home.tsx`: 创建背景板后不再自动跳转 (留在列表, fetcher revalidate 刷新)
 - **验证:** typecheck ✓; 首页/背景板/编辑器 200, 日志零错误
 - **最终结果:** 交互按用户要求收敛 — 便笺仅支持双击进入编辑与拖拽移动; 新建操作均留在当前页; 行块编辑无高度跳动。
+
+## 2026-08-04 — Bug 修复: 双击无法进入便笺编辑页
+
+- **修改文件:** `app/components/board/NoteCard.tsx`
+- **原因:** `handleBodyDown` 中的 `e.preventDefault()` — 按 Pointer Events 规范, 取消 `pointerdown` 会抑制后续兼容鼠标事件 (`click`/`dblclick`), 导致 React `onDoubleClick` 永不触发
+- **修复:** 移除 `preventDefault` (文本选择已由 `select-none` 阻止); 补上 `onDragStart` preventDefault 与 `draggable={false}`, 防止便笺内链接/图片触发浏览器原生拖拽干扰手势
+- **最终结果:** 双击便笺恢复正常进入编辑页, 拖拽移动不受影响; typecheck ✓, 页面 200 零错误。
