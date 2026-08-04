@@ -82,8 +82,11 @@ export const NoteCard = memo(function NoteCard({
         const moved = endDragNote();
         if (moved) onMoveCommit(note.id, moved.previewX, moved.previewY);
       }
-      // 单击无操作; 双击由 onDoubleClick 进入编辑页
-      noteEl.releasePointerCapture(e.pointerId);
+      // 单击无操作; 双击由根元素 onDoubleClick 进入编辑页
+      // pointerup 前捕获已隐式释放, 显式释放需先检查, 否则抛 NotFoundError 中断清理
+      if (noteEl.hasPointerCapture(e.pointerId)) {
+        noteEl.releasePointerCapture(e.pointerId);
+      }
       noteEl.removeEventListener("pointermove", onMove);
       noteEl.removeEventListener("pointerup", onUp);
     };
@@ -95,6 +98,7 @@ export const NoteCard = memo(function NoteCard({
     <div
       className="absolute select-none"
       draggable={false}
+      onDoubleClick={() => onClick(note)}
       style={{
         left: posX,
         top: posY,
@@ -109,7 +113,6 @@ export const NoteCard = memo(function NoteCard({
         className="note-card h-full w-full rounded-lg cursor-pointer flex flex-col"
         onPointerDown={handleBodyDown}
         onDragStart={(e) => e.preventDefault()}
-        onDoubleClick={() => onClick(note)}
       >
         {images.length > 0 && <ThumbnailStack images={images} />}
 
