@@ -63,17 +63,27 @@ export const NoteCard = memo(function NoteCard({
     const vp = useBoardStore.getState().viewport;
     const wx = (e.clientX - vp.viewX) / vp.scale;
     const wy = (e.clientY - vp.viewY) / vp.scale;
-    startDragNote(note.id, e.clientX, e.clientY, wx - note.posX, wy - note.posY);
-    const onMove = (ev: PointerEvent) => updateDragNote(ev.clientX, ev.clientY);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const offsetX = wx - note.posX;
+    const offsetY = wy - note.posY;
+    // 仅在移动超过阈值后才进入拖拽态 (半透明), 单击不触发拖拽视觉
+    let dragging = false;
+    const onMove = (ev: PointerEvent) => {
+      if (!dragging) {
+        const dist = Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY);
+        if (dist < 6) return;
+        dragging = true;
+        startDragNote(note.id, startX, startY, offsetX, offsetY);
+      }
+      updateDragNote(ev.clientX, ev.clientY);
+    };
     const onUp = (ev: PointerEvent) => {
-      const moved = endDragNote();
-      if (moved) {
-        const delta = Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY);
-        if (delta < 5) {
-          onSelect(note); // 单击: 选中 / 再次点击已选中则进入编辑 (由父组件决定)
-        } else {
-          onMoveCommit(note.id, moved.previewX, moved.previewY);
-        }
+      if (dragging) {
+        const moved = endDragNote();
+        if (moved) onMoveCommit(note.id, moved.previewX, moved.previewY);
+      } else {
+        onSelect(note); // 单击: 选中 / 再次点击已选中则进入编辑 (由父组件决定)
       }
       noteEl.releasePointerCapture(e.pointerId);
       noteEl.removeEventListener("pointermove", onMove);

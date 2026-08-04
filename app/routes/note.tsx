@@ -90,7 +90,7 @@ function computeFloatPos(el: HTMLTextAreaElement): { left: number; top: number }
   for (const p of props) (mirror.style as unknown as Record<string, string>)[p] = style[p];
   mirror.style.position = "absolute";
   mirror.style.top = "0";
-  mirror.style.left = "-9999px";
+  mirror.style.left = "0";
   mirror.style.visibility = "hidden";
   mirror.style.width = `${el.clientWidth}px`;
   const spanA = document.createElement("span");
@@ -198,6 +198,37 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
       setActiveLine(activeLine + 1);
       setCaretTarget("start");
       setFloatTool(null);
+      return;
+    }
+    if (e.key === "Backspace") {
+      const el = textareaRefs.current[activeLine];
+      const caret = el?.selectionStart ?? 0;
+      // 行首 Backspace → 合并到上一行 (空行则直接删除)
+      if (caret === 0 && activeLine > 0) {
+        e.preventDefault();
+        const next = [...lines];
+        next[activeLine - 1] = lines[activeLine - 1] + lines[activeLine];
+        next.splice(activeLine, 1);
+        onContentChange(next.join("\n"));
+        setActiveLine(activeLine - 1);
+        setCaretTarget("end");
+        setFloatTool(null);
+      }
+      return;
+    }
+    if (e.key === "Delete") {
+      const el = textareaRefs.current[activeLine];
+      const caret = el?.selectionStart ?? 0;
+      // 行尾 Delete → 与下一行合并
+      if (caret === (el?.value.length ?? 0) && activeLine < lines.length - 1) {
+        e.preventDefault();
+        const next = [...lines];
+        next[activeLine] = lines[activeLine] + lines[activeLine + 1];
+        next.splice(activeLine + 1, 1);
+        onContentChange(next.join("\n"));
+        setCaretTarget("end");
+        setFloatTool(null);
+      }
       return;
     }
     if (e.key === "ArrowUp") {
