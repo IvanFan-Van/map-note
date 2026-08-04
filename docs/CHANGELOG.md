@@ -109,3 +109,11 @@
   - `docs/specifications.md`: F4/F5/第三方库清单同步更新
 - **验证:** 解析器单测 (行级/行内/注解 detect/toggle 全部正确); typecheck ✓; 首页/背景板/编辑器 200, 日志零错误
 - **最终结果:** Markdown 渲染零第三方依赖 (rough-notation 仅负责注解绘制), 编辑器支持行块实时渲染与文本注解, 便笺交互改为单击选中/再击编辑。
+
+## 2026-08-04 — Bug 修复: 浮动工具栏不可见 / 行块无法删除 / 单击便笺闪淡
+
+- **修改文件:**
+  - `app/routes/note.tsx`: `computeFloatPos` 的 mirror div 从 `left: -9999px` 改为 `left: 0` — 原实现直接使用子 span 的视口坐标, 但 mirror 位于屏幕外导致工具栏被定位到 -9999px 处不可见; 另新增行首 Backspace (合并上一行, 空行即删除) 与行尾 Delete (合并下一行)
+  - `app/components/board/NoteCard.tsx`: pointerdown 不再立即进入拖拽态, 改为移动超过 6px 阈值后才 `startDragNote` (半透明); 单击不再闪淡, 正常触发选中
+- **验证:** typecheck ✓; 首页/背景板/编辑器 200, 日志零错误
+- **最终结果:** 选中文本工具栏正常弹出; 行块可合并删除; 单击便笺显示蓝色选中边框。
