@@ -117,3 +117,14 @@
   - `app/components/board/NoteCard.tsx`: pointerdown 不再立即进入拖拽态, 改为移动超过 6px 阈值后才 `startDragNote` (半透明); 单击不再闪淡, 正常触发选中
 - **验证:** typecheck ✓; 首页/背景板/编辑器 200, 日志零错误
 - **最终结果:** 选中文本工具栏正常弹出; 行块可合并删除; 单击便笺显示蓝色选中边框。
+
+## 2026-08-04 — 交互调整: 工具栏定位修复 / 移除选中态 / 行高一致 / 创建不跳转
+
+- **修改文件:**
+  - `app/routes/note.tsx`: `computeFloatPos` 的 mirror 与 textarea 视口位置对齐 (并扣除 scrollLeft/scrollTop), 浮动工具栏回到选区上方; 行 textarea 增加 `rows={1}` + `fieldSizing: content` + `py-0.5`, 与渲染块高度一致 (切换编辑不再高度突变)
+  - `app/components/board/NoteCard.tsx`: 移除选中态与蓝色边框, 单击无操作, 双击进入编辑页; 拖拽移动保留
+  - `app/lib/store.ts`: 移除 `selectedNoteId`/`selectNote`
+  - `app/routes/board.tsx`: 移除选中逻辑与空白取消选中; 双击新建便笺前弹 `confirm` 确认框, 创建后留在画布不跳转
+  - `app/routes/home.tsx`: 创建背景板后不再自动跳转 (留在列表, fetcher revalidate 刷新)
+- **验证:** typecheck ✓; 首页/背景板/编辑器 200, 日志零错误
+- **最终结果:** 交互按用户要求收敛 — 便笺仅支持双击进入编辑与拖拽移动; 新建操作均留在当前页; 行块编辑无高度跳动。
