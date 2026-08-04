@@ -1,4 +1,12 @@
-import type { BoardSummary, User } from "~/lib/types";
+import type {
+  BoardDetail,
+  BoardSummary,
+  Invitation,
+  Link,
+  Note,
+  Role,
+  User,
+} from "~/lib/types";
 import type { GoogleUserInfo } from "~/server/oauth";
 
 export function now(): number {
@@ -136,4 +144,385 @@ export async function getBoardRole(
     .bind(boardId, userId)
     .first<{ role: "editor" | "viewer" }>();
   return row?.role ?? null;
+}
+
+// ---------- 便笺 ----------
+
+const NOTE_SELECT = `id, board_id, author_id, content, pos_x, pos_y, z_index, width, mood, weather, fatigue, diet, created_at, updated_at`;
+
+function noteFromRow(r: {
+  id: string;
+  board_id: string;
+  author_id: string;
+  content: string;
+  pos_x: number;
+  pos_y: number;
+  z_index: number;
+  width: number;
+  mood: string | null;
+  weather: string | null;
+  fatigue: number | null;
+  diet: string | null;
+  created_at: number;
+  updated_at: number;
+}): Note {
+  return {
+    id: r.id,
+    boardId: r.board_id,
+    authorId: r.author_id,
+    content: r.content,
+    posX: r.pos_x,
+    posY: r.pos_y,
+    zIndex: r.z_index,
+    width: r.width,
+    mood: r.mood,
+    weather: r.weather,
+    fatigue: r.fatigue,
+    diet: r.diet,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export async function listNotes(env: Env, boardId: string): Promise<Note[]> {
+  const rows = await env.DB.prepare(
+    `SELECT ${NOTE_SELECT} FROM notes WHERE board_id = ? ORDER BY z_index, created_at`,
+  )
+    .bind(boardId)
+    .all<Parameters<typeof noteFromRow>[0]>();
+  return rows.results.map(noteFromRow);
+}
+
+export async function getNote(
+  env: Env,
+  noteId: string,
+): Promise<Note | null> {
+  const row = await env.DB.prepare(`SELECT ${NOTE_SELECT} FROM notes WHERE id = ?`)
+    .bind(noteId)
+    .first<Parameters<typeof noteFromRow>[0]>();
+  return row ? noteFromRow(row) : null;
+}
+
+export async function createNote(
+  env: Env,
+  boardId: string,
+  authorId: string,
+  data: { x: number; y: number; content?: string; width?: number },
+): Promise<Note> {
+  const id = newId();
+  const ts = now();
+  const zRow = await env.DB.prepare(
+    `SELECT COALESCE(MAX(z_index), 0) + 1 AS z FROM notes WHERE board_id = ?`,
+  )
+    .bind(boardId)
+    .first<{ z: number }>();
+  await env.DB.prepare(
+    `INSERT INTO notes (id, board_id, author_id, content, pos_x, pos_y, z_index, width, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      id,
+      boardId,
+      authorId,
+      data.content ?? "",
+      data.x,
+      data.y,
+      zRow?.z ?? 0,
+      data.width ?? 260,
+      ts,
+      ts,
+    )
+    .run();
+  return (await getNote(env, id))!;
+}
+
+export async function updateNote(
+  env: Env,
+  noteId: string,
+  changes: Partial<Pick<Note, "content" | "mood" | "weather" | "fatigue" | "diet">>,
+): Promise<Note | null> {
+  const ts = now();
+  const sets: string[] = [];
+  const binds: (string | number | null)[] = [];
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === undefined) continue;
+    sets.push(`${key} = ?`);
+    binds.push(value as string | number | null);
+  }
+  if (sets.length === 0) return getNote(env, noteId);
+  sets.push("updated_at = ?");
+  binds.push(ts, noteId);
+  await env.DB.prepare(`UPDATE notes SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds)
+    .run();
+  return getNote(env, noteId);
+}
+
+export async function moveNote(
+  env: Env,
+  noteId: string,
+  x: number,
+  y: number,
+  zIndex?: number,
+): Promise<Note | null> {
+  await env.DB.prepare(
+    `UPDATE notes SET pos_x = ?, pos_y = ?, ${zIndex !== undefined ? "z_index = ?," : ""} updated_at = ? WHERE id = ?`,
+  )
+    .bind(...(zIndex !== undefined ? [x, y, zIndex, now(), noteId] : [x, y, now(), noteId]))
+    .run();
+  return getNote(env, noteId);
+}
+
+export async function deleteNote(env: Env, noteId: string): Promise<void> {
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM links WHERE from_note_id = ? OR to_note_id = ?`).bind(
+      noteId,
+      noteId,
+    ),
+    env.DB.prepare(`DELETE FROM notes WHERE id = ?`).bind(noteId),
+  ]);
+}
+
+// ---------- 连线 ----------
+
+const LINK_SELECT = `id, board_id, from_note_id, to_note_id, color, thickness, created_at`;
+
+function linkFromRow(r: {
+  id: string;
+  board_id: string;
+  from_note_id: string;
+  to_note_id: string;
+  color: string;
+  thickness: number;
+  created_at: number;
+}): Link {
+  return {
+    id: r.id,
+    boardId: r.board_id,
+    fromNoteId: r.from_note_id,
+    toNoteId: r.to_note_id,
+    color: r.color,
+    thickness: r.thickness,
+    createdAt: r.created_at,
+  };
+}
+
+export async function listLinks(env: Env, boardId: string): Promise<Link[]> {
+  const rows = await env.DB.prepare(
+    `SELECT ${LINK_SELECT} FROM links WHERE board_id = ? ORDER BY created_at`,
+  )
+    .bind(boardId)
+    .all<Parameters<typeof linkFromRow>[0]>();
+  return rows.results.map(linkFromRow);
+}
+
+export async function createLink(
+  env: Env,
+  boardId: string,
+  fromNoteId: string,
+  toNoteId: string,
+  color = "#e11d48",
+  thickness = 2,
+): Promise<Link> {
+  const id = newId();
+  await env.DB.prepare(
+    `INSERT INTO links (id, board_id, from_note_id, to_note_id, color, thickness, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, boardId, fromNoteId, toNoteId, color, thickness, now())
+    .run();
+  const row = await env.DB.prepare(`SELECT ${LINK_SELECT} FROM links WHERE id = ?`)
+    .bind(id)
+    .first<Parameters<typeof linkFromRow>[0]>();
+  return linkFromRow(row!);
+}
+
+export async function getLink(
+  env: Env,
+  linkId: string,
+): Promise<Link | null> {
+  const row = await env.DB.prepare(`SELECT ${LINK_SELECT} FROM links WHERE id = ?`)
+    .bind(linkId)
+    .first<Parameters<typeof linkFromRow>[0]>();
+  return row ? linkFromRow(row) : null;
+}
+
+export async function updateLink(
+  env: Env,
+  linkId: string,
+  changes: Partial<Pick<Link, "color" | "thickness">>,
+): Promise<Link | null> {
+  const sets: string[] = [];
+  const binds: (string | number)[] = [];
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === undefined) continue;
+    sets.push(`${key} = ?`);
+    binds.push(value as string | number);
+  }
+  if (sets.length === 0) return getLink(env, linkId);
+  binds.push(linkId);
+  await env.DB.prepare(`UPDATE links SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds)
+    .run();
+  return getLink(env, linkId);
+}
+
+export async function deleteLink(env: Env, linkId: string): Promise<void> {
+  await env.DB.prepare(`DELETE FROM links WHERE id = ?`).bind(linkId).run();
+}
+
+// ---------- 背景板详情 ----------
+
+export async function getBoardDetail(
+  env: Env,
+  boardId: string,
+  userId: string,
+): Promise<BoardDetail | null> {
+  const row = await env.DB.prepare(
+    `SELECT b.id, b.name, b.owner_id, m.role
+     FROM boards b JOIN board_members m ON m.board_id = b.id
+     WHERE b.id = ? AND m.user_id = ?`,
+  )
+    .bind(boardId, userId)
+    .first<{ id: string; name: string; owner_id: string; role: Role }>();
+  if (!row) return null;
+  return { id: row.id, name: row.name, ownerId: row.owner_id, role: row.role };
+}
+
+// ---------- 邀请与收件箱 ----------
+
+export async function createInvitation(
+  env: Env,
+  boardId: string,
+  inviterId: string,
+  inviteeId: string,
+  role: Role,
+): Promise<Invitation | null> {
+  const dup = await env.DB.prepare(
+    `SELECT id FROM invitations WHERE board_id = ? AND invitee_id = ? AND status = 'pending'`,
+  )
+    .bind(boardId, inviteeId)
+    .first();
+  if (dup) return null;
+  const id = newId();
+  const ts = now();
+  await env.DB.prepare(
+    `INSERT INTO invitations (id, board_id, inviter_id, invitee_id, role, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
+  )
+    .bind(id, boardId, inviterId, inviteeId, role, ts, ts)
+    .run();
+  const row = await env.DB.prepare(
+    `SELECT i.id, i.board_id, i.inviter_id, i.invitee_id, i.role, i.status, i.created_at,
+            b.name AS board_name, u.name AS inviter_name
+     FROM invitations i
+     JOIN boards b ON b.id = i.board_id
+     JOIN users u ON u.id = i.inviter_id
+     WHERE i.id = ?`,
+  )
+    .bind(id)
+    .first<InvitationRow>();
+  return row ? invitationFromRow(row) : null;
+}
+
+interface InvitationRow {
+  id: string;
+  board_id: string;
+  inviter_id: string;
+  invitee_id: string;
+  role: Role;
+  status: "pending" | "accepted" | "declined";
+  created_at: number;
+  board_name: string;
+  inviter_name: string;
+}
+
+function invitationFromRow(r: InvitationRow): Invitation {
+  return {
+    id: r.id,
+    boardId: r.board_id,
+    boardName: r.board_name,
+    inviterId: r.inviter_id,
+    inviterName: r.inviter_name,
+    role: r.role,
+    status: r.status,
+    createdAt: r.created_at,
+  };
+}
+
+export async function listInbox(
+  env: Env,
+  userId: string,
+): Promise<Invitation[]> {
+  const rows = await env.DB.prepare(
+    `SELECT i.id, i.board_id, i.inviter_id, i.invitee_id, i.role, i.status, i.created_at,
+            b.name AS board_name, u.name AS inviter_name
+     FROM invitations i
+     JOIN boards b ON b.id = i.board_id
+     JOIN users u ON u.id = i.inviter_id
+     WHERE i.invitee_id = ? AND i.status = 'pending'
+     ORDER BY i.created_at DESC`,
+  )
+    .bind(userId)
+    .all<InvitationRow>();
+  return rows.results.map(invitationFromRow);
+}
+
+export async function acceptInvitation(
+  env: Env,
+  invitationId: string,
+  userId: string,
+): Promise<{ boardId: string; role: Role; boardName: string } | null> {
+  const row = await env.DB.prepare(
+    `SELECT i.id, i.board_id, i.invitee_id, i.role, b.name AS board_name
+     FROM invitations i JOIN boards b ON b.id = i.board_id
+     WHERE i.id = ? AND i.status = 'pending'`,
+  )
+    .bind(invitationId)
+    .first<{ id: string; board_id: string; invitee_id: string; role: Role; board_name: string }>();
+  if (!row || row.invitee_id !== userId) return null;
+  const ts = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE invitations SET status = 'accepted', updated_at = ? WHERE id = ?`,
+    ).bind(ts, invitationId),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO board_members (board_id, user_id, role, created_at) VALUES (?, ?, ?, ?)`,
+    ).bind(row.board_id, userId, row.role, ts),
+  ]);
+  return { boardId: row.board_id, role: row.role, boardName: row.board_name };
+}
+
+export async function declineInvitation(
+  env: Env,
+  invitationId: string,
+  userId: string,
+): Promise<boolean> {
+  const row = await env.DB.prepare(
+    `SELECT id FROM invitations WHERE id = ? AND status = 'pending' AND invitee_id = ?`,
+  )
+    .bind(invitationId, userId)
+    .first<{ id: string }>();
+  if (!row) return false;
+  await env.DB.prepare(
+    `UPDATE invitations SET status = 'declined', updated_at = ? WHERE id = ?`,
+  )
+    .bind(now(), invitationId)
+    .run();
+  return true;
+}
+
+// ---------- 默认背景板 ----------
+
+export async function setDefaultBoard(
+  env: Env,
+  userId: string,
+  boardId: string,
+): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO user_settings (user_id, default_board_id, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT (user_id) DO UPDATE SET default_board_id = excluded.default_board_id, updated_at = excluded.updated_at`,
+  )
+    .bind(userId, boardId, now())
+    .run();
 }

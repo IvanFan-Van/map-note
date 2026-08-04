@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useFetcher, useNavigate, useSearchParams } from "react-router";
-import type { BoardSummary } from "~/lib/types";
+import { Link, useFetcher, useNavigate, useRevalidator, useSearchParams } from "react-router";
+import { jsonApi } from "~/lib/api";
+import type { BoardSummary, Invitation } from "~/lib/types";
 import { getSessionUser } from "~/server/auth";
 import { createBoard, getUserSettings, listBoardsForUser } from "~/server/db";
 import type { Route } from "./+types/home";
@@ -106,7 +107,7 @@ function GoogleIcon() {
 function BoardsView({
   user,
   boards,
-  defaultBoardId,
+  defaultBoardId: defaultBoardIdInitial,
 }: {
   user: NonNullable<Route.ComponentProps["loaderData"]["user"]>;
   boards: BoardSummary[];
@@ -114,11 +115,48 @@ function BoardsView({
 }) {
   const fetcher = useFetcher<{ ok: boolean; board?: BoardSummary }>();
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [inboxLoading, setInboxLoading] = useState(false);
+  const [defaultBoardId, setDefaultBoardId] = useState<string | null>(defaultBoardIdInitial);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const loadInbox = useCallback(async () => {
+    setInboxLoading(true);
+    try {
+      const res = await fetch("/api/invitations/inbox");
+      if (res.ok) {
+        const body = (await res.json()) as { data?: { invitations?: Invitation[] } };
+        setInvitations(body.data?.invitations ?? []);
+      }
+    } finally {
+      setInboxLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadInbox();
+  }, [loadInbox]);
+
+  const handleInvitation = async (id: string, action: "accept" | "decline") => {
+    try {
+      const res = await jsonApi<{ boardId?: string }>(`/api/invitations/${id}`, "POST", {
+        action,
+      });
+      await loadInbox();
+      revalidator.revalidate();
+      if (action === "accept" && res.boardId) {
+        navigate(`/b/${res.boardId}`);
+      }
+    } catch {
+      await loadInbox();
+    }
+  };
 
   const create = useCallback(() => {
     if (fetcher.state !== "idle") return;
@@ -137,7 +175,71 @@ function BoardsView({
     <main className="min-h-screen max-w-4xl mx-auto px-6 py-8">
       <header className="flex items-center justify-between mb-8">
         <h1 className="text-3xl">co-note</h1>
-        <div className="relative">
+        <div className="flex items-center gap-3">
+          {/* 收件箱 */}
+          <div className="relative">
+            <button
+              onClick={() => setInboxOpen((v) => !v)}
+              className="relative rounded-full bg-white p-2.5 shadow-sm hover:shadow-md transition-shadow"
+              title="收件箱"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+                <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+              </svg>
+              {invitations.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4.5 h-4.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center px-1">
+                  {invitations.length}
+                </span>
+              )}
+            </button>
+            {inboxOpen && (
+              <div className="absolute right-0 top-12 w-80 rounded-2xl bg-white shadow-xl p-4 z-30">
+                <h3 className="text-lg mb-2">收件箱</h3>
+                {inboxLoading ? (
+                  <p className="text-sm text-warm/50">加载中…</p>
+                ) : invitations.length === 0 ? (
+                  <p className="text-sm text-warm/50 py-4 text-center">
+                    暂无邀请 — 把你的用户 ID 分享给朋友, 邀请你一起记生活
+                  </p>
+                ) : (
+                  <ul className="space-y-2 max-h-80 overflow-auto">
+                    {invitations.map((inv) => (
+                      <li
+                        key={inv.id}
+                        className="rounded-xl bg-board/60 p-3 text-sm space-y-2"
+                      >
+                        <p>
+                          <span className="font-semibold">{inv.inviterName}</span>{" "}
+                          邀请你加入 <span className="font-semibold">{inv.boardName}</span>
+                          <span className="ml-1 text-warm/50">
+                            ({inv.role === "editor" ? "编辑者" : "观看者"})
+                          </span>
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => void handleInvitation(inv.id, "accept")}
+                            className="flex-1 rounded-xl bg-warm text-white py-1.5 hover:opacity-90"
+                          >
+                            接受
+                          </button>
+                          <button
+                            onClick={() => void handleInvitation(inv.id, "decline")}
+                            className="flex-1 rounded-xl bg-board py-1.5 hover:bg-warm/10"
+                          >
+                            拒绝
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 账户菜单 */}
+          <div className="relative">
           <button
             onClick={() => setMenuOpen((v) => !v)}
             className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-4 shadow-sm hover:shadow-md transition-shadow"
@@ -182,7 +284,20 @@ function BoardsView({
             </div>
           )}
         </div>
+        </div>
       </header>
+
+      {defaultBoardId && boards.find((b) => b.id === defaultBoardId) && (
+        <Link
+          to={`/b/${defaultBoardId}`}
+          className="mb-4 flex items-center justify-between rounded-2xl bg-warm text-white px-5 py-3 shadow-md hover:opacity-95 transition-opacity"
+        >
+          <span className="text-lg">
+            继续进入 <strong>{boards.find((b) => b.id === defaultBoardId)?.name}</strong>
+          </span>
+          <span>→</span>
+        </Link>
+      )}
 
       <section className="flex items-center justify-between mb-4">
         <h2 className="text-2xl">我的背景板</h2>
@@ -234,11 +349,23 @@ function BoardsView({
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-2xl leading-tight">{b.name}</h3>
-                  {b.id === defaultBoardId && (
-                    <span className="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-xs text-warm/70">
-                      默认
-                    </span>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void jsonApi(`/api/boards/${b.id}?action=default`, "POST", {}).then(() =>
+                        setDefaultBoardId(b.id),
+                      );
+                    }}
+                    className={`shrink-0 text-lg ${
+                      b.id === defaultBoardId
+                        ? "text-amber-500"
+                        : "text-warm/30 hover:text-amber-400"
+                    }`}
+                    title={b.id === defaultBoardId ? "当前默认背景板" : "设为默认背景板"}
+                  >
+                    {b.id === defaultBoardId ? "★" : "☆"}
+                  </button>
                 </div>
                 <div className="mt-4 flex items-center gap-4 text-sm text-warm/60">
                   <span>{b.role === "editor" ? "编辑者" : "观看者"}</span>

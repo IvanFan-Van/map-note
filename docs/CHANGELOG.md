@@ -37,3 +37,20 @@
   - v7 模板关键配置: cloudflare 插件置于插件列表首位并绑定 ssr 环境; `environments.ssr.optimizeDeps.include` 显式声明 SSR 依赖避免运行时动态预打包崩溃
   - `window` 等浏览器 API 不可在 SSR 组件顶层使用 (改 useSearchParams)
 - **最终结果:** dev server 正常: 首页 200 (SSR)、`/auth/login` 302 跳转 Google (PKCE 参数完整)、`/api/user`/`/api/boards` 未登录 401、typecheck 通过。
+
+## 2026-08-04 — M2~M6: 无限画布、便笺、编辑器、连线、协作与实时同步
+
+- **修改文件:**
+  - `app/routes/board.tsx` (新建): 无限画布 — Ctrl+滚轮/双指缩放 (0.25×~4×, 光标锚点)、拖拽平移、空白双击创建便笺、便笺渲染、蓝色 mask 拖拽预览、图钉拖拽连线、顶部工具栏 (返回/板名/默认板星标/在线成员/连接状态/邀请/只读标记)
+  - `app/routes/note.tsx` (新建): 便笺编辑器 — Markdown 编辑+实时预览、工具栏 (加粗/斜体/标题/列表/链接/图片)、图片上传 (R2, 自动插入 markdown)、心情/天气/疲惫/进食快捷状态栏、防抖自动保存
+  - `app/components/board/NoteCard.tsx` (新建): 纸张质感卡片 (米黄渐变/折角/折痕)、大头钉、缩略图堆叠 (最多 3 张错位)、状态角标、拖拽/点击/连线手势
+  - `app/components/board/LinkLayer.tsx` (新建): SVG 贝塞尔连线 (图钉到图钉)、选中浮层 (6 色色板/粗细滑块/删除)、橡皮筋预览
+  - `app/lib/store.ts` (新建): zustand 画布状态 (视口/便笺/连线/拖拽/连线手势/补丁合并)
+  - `app/lib/pusher.ts` (新建): pusher-js 客户端 (presence 频道订阅/成员事件/补丁分发/连接状态)
+  - `app/server/permissions.ts` (新建): 成员/编辑者权限守卫 + Pusher 广播封装
+  - `app/server/db.ts`: 新增便笺/连线/邀请/收件箱/默认板/板详情等全部数据函数
+  - API 路由 (新建): `api/notes`(POST)、`api/note`(PATCH/DELETE)、`api/note-position`(PUT)、`api/links`(POST)、`api/link`(PATCH/DELETE)、`api/invitations`(POST)、`api/invitations/inbox`(GET)、`api/invitation`(accept/decline)、`api/board`(详情/设默认)、`api/images`(上传)、`api/pusher/auth`(频道鉴权)、`images/*`(R2 代理, splat 路由)
+  - `app/routes/home.tsx`: 收件箱 (铃铛+红点+接受/拒绝)、默认板星标与"继续进入"横幅、账户菜单
+  - `app/app.css`: 便笺纸张质感与折角样式; `vite.config.ts`: SSR 依赖预打包清单补全
+- **验证 (curl + 本地 D1 双用户):** 创建/更新/移动/删除便笺 ✓; 连线创建 ✓; 邀请→收件箱→接受→viewer 只读 (写操作 403) ✓; 默认板 ✓; 图片上传/鉴权读取 ✓; 页面路由未登录重定向登录页 ✓; typecheck ✓
+- **最终结果:** 规格中 F1~F9 全部功能已实现; Pusher 触发使用占位凭据 (已捕获失败不影响业务), 待用户提供真实凭据后实时广播生效。
