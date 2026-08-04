@@ -6,7 +6,7 @@ import { jsonApi } from "~/lib/api";
 import { subscribeBoard } from "~/lib/pusher";
 import type { BoardMemberInfo } from "~/lib/pusher";
 import { useBoardStore } from "~/lib/store";
-import type { Note } from "~/lib/types";
+import type { Link as BoardLink, Note } from "~/lib/types";
 import { getSessionUser } from "~/server/auth";
 import { getBoardDetail, getUserSettings, listLinks, listNotes } from "~/server/db";
 import type { Route } from "./+types/board";
@@ -153,17 +153,24 @@ export default function Board({ loaderData }: Route.ComponentProps) {
     [isEditor, board.id, navigate],
   );
 
-  // 拖拽提交
+  // 拖拽提交: 先乐观放置本地, PUT 成功后用服务端返回值校准,
+  // 不依赖 Pusher 回环 (订阅/触发失败时放置仍生效)
+  const upsertNote = useBoardStore((s) => s.upsertNote);
   const commitMove = useCallback(
     (noteId: string, x: number, y: number) => {
-      void jsonApi(`/api/notes/${noteId}/position`, "PUT", { x, y }).catch(() => {
-        setToast("移动保存失败");
-      });
+      const current = useBoardStore.getState().notes[noteId];
+      if (current) upsertNote({ ...current, posX: x, posY: y });
+      void jsonApi<{ note: Note }>(`/api/notes/${noteId}/position`, "PUT", { x, y })
+        .then((r) => {
+          if (r.note) upsertNote(r.note);
+        })
+        .catch(() => setToast("移动保存失败"));
     },
-    [],
+    [upsertNote],
   );
 
-  // 连线创建
+  // 连线创建: 成功后用返回值更新本地 store (不依赖 Pusher 回环)
+  const upsertLink = useBoardStore((s) => s.upsertLink);
   const handleLinkDrop = useCallback(
     (fromNoteId: string, screenX: number, screenY: number) => {
       const vp = useBoardStore.getState().viewport;
@@ -180,14 +187,18 @@ export default function Board({ loaderData }: Route.ComponentProps) {
         }
       }
       if (!target) return;
-      void jsonApi("/api/links", "POST", {
+      void jsonApi<{ link: BoardLink }>("/api/links", "POST", {
         boardId: board.id,
         fromNoteId,
         toNoteId: target.id,
         color: LINK_COLORS[Math.floor(Math.random() * LINK_COLORS.length)],
-      }).catch(() => setToast("创建连线失败"));
+      })
+        .then((r) => {
+          if (r.link) upsertLink(r.link);
+        })
+        .catch(() => setToast("创建连线失败"));
     },
-    [board.id],
+    [board.id, upsertLink],
   );
 
   // 平移与缩放手势
