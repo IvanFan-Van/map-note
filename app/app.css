@@ -9,25 +9,153 @@
   --color-warm: #4a4238;
 }
 
-html,
-body {
-  @apply bg-board text-warm;
-  font-family: var(--font-sans);
-  letter-spacing: 0.02em;
+/* ---------- 全局初始化 (reset) ---------- */
+@layer base {
+  /* 所有元素统一 border-box, 清除默认 margin/padding/边框 */
+  *,
+  *::before,
+  *::after,
+  *::backdrop,
+  ::file-selector-button {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+
+  html {
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+  }
+
+  body {
+    margin: 0;
+    line-height: inherit;
+  }
+
+  /* 标题/段落/列表: 字号与粗细交给工具类 */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  blockquote,
+  dl,
+  dd,
+  hr,
+  figure,
+  p,
+  pre {
+    margin: 0;
+  }
+
+  ol,
+  ul,
+  menu {
+    list-style: none;
+  }
+
+  fieldset {
+    margin: 0;
+    padding: 0;
+  }
+
+  legend,
+  dialog {
+    padding: 0;
+  }
+
+  /* 链接继承颜色与装饰 */
+  a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+
+  /* 媒体元素块级化, 避免基线间隙 */
+  img,
+  svg,
+  video,
+  canvas,
+  audio,
+  iframe,
+  embed,
+  object {
+    display: block;
+    vertical-align: middle;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* 表单控件: 统一继承排版与颜色 */
+  button,
+  input,
+  select,
+  optgroup,
+  textarea,
+  ::file-selector-button {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    border-radius: 0;
+    background-color: transparent;
+    opacity: 1;
+  }
+
+  ::file-selector-button {
+    padding: 0;
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  /* placeholder 保持半透明继承色 */
+  input::placeholder,
+  textarea::placeholder {
+    opacity: 1;
+    color: color-mix(in oklab, currentColor 50%, transparent);
+  }
+
+  :disabled {
+    cursor: default;
+  }
 }
 
-/* 便笺卡片: 单色浅暖白 + 描边 + 柔和双层阴影, 无渐变 */
-.note-card {
-  background: #fefcf5;
-  border: 1px solid rgba(74, 66, 56, 0.12);
-  box-shadow:
-    0 1px 2px rgba(74, 66, 56, 0.08),
-    0 8px 24px rgba(74, 66, 56, 0.12);
-  transition: box-shadow 150ms ease;
+/* ---------- 应用主题基调 ---------- */
+@layer base {
+  html,
+  body {
+    @apply bg-board text-warm;
+    font-family: var(--font-sans);
+    letter-spacing: 0.02em;
+  }
 }
 
-.note-card:hover {
-  box-shadow:
-    0 1px 3px rgba(74, 66, 56, 0.1),
-    0 12px 32px rgba(74, 66, 56, 0.18);
+/* ---------- 组件样式 ---------- */
+@layer components {
+  /* 便笺卡片: 单色浅暖白 + 描边 + 柔和双层阴影, 无渐变 */
+  .note-card {
+    background: #fefcf5;
+    border: 1px solid rgba(74, 66, 56, 0.12);
+    box-shadow: 0 1px 2px rgba(74, 66, 56, 0.08),
+      0 8px 24px rgba(74, 66, 56, 0.12);
+    transition: box-shadow 150ms ease;
+  }
+
+  .note-card:hover {
+    box-shadow: 0 1px 3px rgba(74, 66, 56, 0.1),
+      0 12px 32px rgba(74, 66, 56, 0.18);
+  }
 }
