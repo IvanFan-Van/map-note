@@ -17,6 +17,7 @@
     ]
   },
   "dependencies": {
+    "@noble/hashes": "^2.2.0",
     "@react-router/node": "^7.9.6",
     "@react-router/serve": "^7.9.6",
     "clsx": "^2.1.1",

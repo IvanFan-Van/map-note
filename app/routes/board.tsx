@@ -237,14 +237,22 @@ export default function Board({ loaderData }: Route.ComponentProps) {
     if (pointersRef.current.size === 0) panRef.current = null;
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.1 : 1 / 1.1);
-    } else {
-      panBy(-e.deltaX, -e.deltaY);
-    }
-  };
+  // 缩放/平移滚轮 (原生非 passive 监听, 否则 preventDefault 无效, Ctrl+滚轮会触发浏览器缩放)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.1 : 1 / 1.1);
+      } else {
+        e.preventDefault();
+        panBy(-e.deltaX, -e.deltaY);
+      }
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [zoomAt, panBy]);
 
   const openNote = useCallback(
     (note: Note) => navigate(`/b/${board.id}/n/${note.id}`),
@@ -378,7 +386,6 @@ export default function Board({ loaderData }: Route.ComponentProps) {
         ref={containerRef}
         className="absolute inset-0"
         style={{ touchAction: "none" }}
-        onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

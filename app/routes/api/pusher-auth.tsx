@@ -1,5 +1,5 @@
 import { requireUser } from "~/server/auth";
-import { boardChannel, createPusher } from "~/server/pusher";
+import { authorizeChannel, boardChannel } from "~/server/pusher";
 import type { Route } from "./+types/pusher-auth";
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -30,8 +30,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (!role) {
     return new Response("无权订阅该频道", { status: 403 });
   }
-  const pusher = createPusher(env);
-  const auth = pusher.authorizeChannel(socketId, channelName, {
+  const auth = authorizeChannel(env, socketId, channelName, {
     user_id: user.id,
     user_info: { name: user.name, avatarUrl: user.avatarUrl },
   });

@@ -2,7 +2,7 @@ import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Note } from "~/lib/types";
-import { pinAnchor, useBoardStore, worldToScreen } from "~/lib/store";
+import { useBoardStore } from "~/lib/store";
 
 const MOODS: Record<string, string> = {
   happy: "😊",
@@ -66,7 +66,6 @@ export const NoteCard = memo(function NoteCard({
   onMoveCommit: (noteId: string, x: number, y: number) => void;
   onLinkDrop: (fromNoteId: string, screenX: number, screenY: number) => void;
 }) {
-  const viewport = useBoardStore((s) => s.viewport);
   const dragNote = useBoardStore((s) => s.dragNote);
   const startDragNote = useBoardStore((s) => s.startDragNote);
   const updateDragNote = useBoardStore((s) => s.updateDragNote);
@@ -76,10 +75,10 @@ export const NoteCard = memo(function NoteCard({
   const endLinkDrag = useBoardStore((s) => s.endLinkDrag);
 
   const isDragging = dragNote?.noteId === note.id;
+  // NoteCard 位于已应用 translate+scale 的 world 层内, 直接使用世界坐标定位
   const posX = isDragging ? dragNote.previewX : note.posX;
   const posY = isDragging ? dragNote.previewY : note.posY;
-  const { sx, sy } = worldToScreen(posX, posY, viewport);
-  const w = note.width * viewport.scale;
+  const w = note.width;
 
   const images = extractImages(note.content);
 
@@ -136,8 +135,8 @@ export const NoteCard = memo(function NoteCard({
     <div
       className="absolute select-none"
       style={{
-        left: sx,
-        top: sy,
+        left: posX,
+        top: posY,
         width: w,
         zIndex: isDragging ? 9999 : note.zIndex,
         opacity: isDragging ? 0.45 : 1,

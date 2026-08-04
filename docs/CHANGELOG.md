@@ -54,3 +54,15 @@
   - `app/app.css`: 便笺纸张质感与折角样式; `vite.config.ts`: SSR 依赖预打包清单补全
 - **验证 (curl + 本地 D1 双用户):** 创建/更新/移动/删除便笺 ✓; 连线创建 ✓; 邀请→收件箱→接受→viewer 只读 (写操作 403) ✓; 默认板 ✓; 图片上传/鉴权读取 ✓; 页面路由未登录重定向登录页 ✓; typecheck ✓
 - **最终结果:** 规格中 F1~F9 全部功能已实现; Pusher 触发使用占位凭据 (已捕获失败不影响业务), 待用户提供真实凭据后实时广播生效。
+
+## 2026-08-04 — Bug 修复: 双击创建 404 / 平移便笺乱飞 / Ctrl+滚轮缩放 / Pusher workerd 崩溃
+
+- **修改文件:**
+  - `app/routes/board.tsx`: wheel 改为原生非 passive 监听 (`addEventListener("wheel", ..., { passive: false })`), `preventDefault()` 生效, 不再触发浏览器默认缩放
+  - `app/components/board/NoteCard.tsx`: 定位从屏幕坐标改为世界坐标 (便笺在已带 translate+scale 的 world 层内, 原双重变换导致平移/缩放时便笺乱飞)
+  - `app/root.tsx` + `app/app.css`: 字体 `@font-face` 从 CSS 移到 root 注入 — `import fontUrl from "~assets/LeMiXiaoNaiPaoTi.TTF?url"` (vite 生成绝对 URL), 修复深层路由下相对路径被解析成 `/b/assets/...` 导致的 404
+  - `tsconfig.json`: 新增 `~assets/*` 别名 (runner 拒绝 app 目录外的相对导入)
+  - `app/server/pusher.ts` + `app/routes/api/pusher-auth.tsx` + `app/server/permissions.ts`: 弃用官方 `pusher` npm 包 (底层 node:http 在 workerd 兼容层崩溃 "Cannot read properties of null (reading 'has')"), 改为纯 fetch 实现 Pusher REST API (MD5 body 签名 + HMAC-SHA256 auth_signature, 使用 @noble/hashes)
+  - `package.json`: 新增 `@noble/hashes`; `vite.config.ts`: 预打包列表补充 @noble/hashes 子路径
+- **验证:** 首页/编辑器页 200; 字体资源 `/assets/LeMiXiaoNaiPaoTi.TTF` 200 (4.6MB); 创建便笺 200 且 Pusher 真实触发无错误; 日志零错误 (无 No route matches / Denied ID / pre-bundle / trigger failed); typecheck ✓
+- **最终结果:** 三个上报 bug 全部修复, 附带修复 Pusher 在 Workers 环境的兼容性问题。

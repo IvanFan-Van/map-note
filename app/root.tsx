@@ -8,6 +8,7 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import fontUrl from "~assets/LeMiXiaoNaiPaoTi.TTF?url";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -21,6 +22,13 @@ export const links: Route.LinksFunction = () => [
     rel: "stylesheet",
     href: "https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap",
   },
+  {
+    rel: "preload",
+    href: fontUrl,
+    as: "font",
+    type: "font/ttf",
+    crossOrigin: "anonymous",
+  },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -32,6 +40,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <title>co-note · 共享便笺</title>
         <Meta />
         <Links />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `@font-face{font-family:"LeMiXiaoNaiPaoTi";src:url("${fontUrl}") format("truetype");font-display:swap}`,
+          }}
+        />
       </head>
       <body>
         {children}

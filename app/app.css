@@ -1,11 +1,5 @@
 @import "tailwindcss";
 
-@font-face {
-  font-family: "LeMiXiaoNaiPaoTi";
-  src: url("../../assets/LeMiXiaoNaiPaoTi.TTF") format("truetype");
-  font-display: swap;
-}
-
 @theme {
   --font-sans: "Patrick Hand", "LeMiXiaoNaiPaoTi", ui-sans-serif, system-ui,
     sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",

@@ -1,6 +1,6 @@
 import { getBoardRole } from "~/server/db";
 import type { PatchEvent } from "~/lib/types";
-import { boardChannel, createPusher, PATCH_EVENT } from "~/server/pusher";
+import { boardChannel, PATCH_EVENT, triggerPusher } from "~/server/pusher";
 
 export async function assertMember(env: Env, boardId: string, userId: string) {
   const role = await getBoardRole(env, boardId, userId);
@@ -25,8 +25,7 @@ export async function assertEditor(env: Env, boardId: string, userId: string) {
 }
 
 export function broadcastPatch(env: Env, boardId: string, patch: PatchEvent): void {
-  const pusher = createPusher(env);
-  pusher
-    .trigger(boardChannel(boardId), PATCH_EVENT, patch)
-    .catch((err) => console.error("[pusher] trigger failed:", err));
+  void triggerPusher(env, boardChannel(boardId), PATCH_EVENT, patch).catch((err) =>
+    console.error("[pusher] trigger failed:", err),
+  );
 }
