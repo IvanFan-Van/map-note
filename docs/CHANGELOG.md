@@ -135,3 +135,11 @@
 - **原因:** `handleBodyDown` 中的 `e.preventDefault()` — 按 Pointer Events 规范, 取消 `pointerdown` 会抑制后续兼容鼠标事件 (`click`/`dblclick`), 导致 React `onDoubleClick` 永不触发
 - **修复:** 移除 `preventDefault` (文本选择已由 `select-none` 阻止); 补上 `onDragStart` preventDefault 与 `draggable={false}`, 防止便笺内链接/图片触发浏览器原生拖拽干扰手势
 - **最终结果:** 双击便笺恢复正常进入编辑页, 拖拽移动不受影响; typecheck ✓, 页面 200 零错误。
+
+## 2026-08-04 — Bug 修复: 双击进入编辑页 (捕获元素与事件绑定不一致)
+
+- **修改文件:** `app/components/board/NoteCard.tsx`
+- **原因:** 上一轮移除 `pointerdown` 的 preventDefault 后双击仍失效 — `setPointerCapture` 会把 `click`/`dblclick` 等兼容鼠标事件的目标改为**捕获元素** (note-card 的父定位 div), 而 `onDoubleClick` 绑在子 `.note-card` 上, 事件从捕获元素冒泡不会经过子元素, 永远收不到
+- **修复:** `onDoubleClick` 移到捕获元素 (根定位 div) 上; 另加 `hasPointerCapture` 检查 (pointerup 派发前捕获已隐式释放, 显式 `releasePointerCapture` 会抛 NotFoundError 中断 onUp 的监听器清理)
+- **验证:** playwright 实测 — 双击便笺成功导航至编辑器页; 拖拽便笺位移与鼠标一致 (400px→550px); typecheck ✓
+- **最终结果:** 双击进入编辑与拖拽移动均正常。
