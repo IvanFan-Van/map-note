@@ -2,6 +2,23 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-04 — TipTap 真 WYSIWYG 编辑器重构 + per-annotation 颜色
+
+- **背景:** 用户要求"标记语法仅后台存在, 用户只见注解效果 + 任意选中文本即弹工具栏"。行块式 textarea 无法局部隐藏标记 (WYSIWYG 需要富文本模型) → 引入 TipTap 重写
+- **修改文件:**
+  - `app/routes/note.tsx`: 重写 — `useEditor` + StarterKit/Image/Link/AnnotationMark, `BubbleMenu` (选中即弹, 替代原行块/选区/floatTool 约 200 行); 模板插入/格式工具栏/图片上传迁移到 `editor.commands`; 保存 onUpdate 防抖导出标记字符串 → PATCH (存储格式不变)
+  - `app/components/editor/annotationMark.ts` (新建): 注解 Mark, attrs `{ annotation, multiline, color }`, renderHTML 输出 `span[data-annotation][data-color][data-multiline]`; `toggleAnnotation`/`setAnnotationColor` 命令 (跨行选区返回 false)
+  - `app/components/editor/annotationRenderer.ts` (新建): **overlay SVG 管线** — 编辑器内容上方叠加 absolute svg, sync 时把全部注解 span 的 rect 用 `renderAnnotation` + 固定 seed 重绘; 与 ProseMirror contentDOM 解耦 (view.update 会清除非模型 DOM, 这也是最初 annotate 方案失败的根因); rAF 延迟到 DOM 更新后绘制
+  - `app/lib/tiptap.ts` (新建): `markdownToJSON`/`jsonToMarkdown` 往返转换器 (每 block = 一行); 18 用例无损 (嵌套/三连/带色/链接/图片/标题/列表/引用/空行)
+  - `app/lib/markdown.ts`: **带色标记语法** `[[#e11d48|内容]]` / `[[[#…|内容]]]` (向后兼容, 无前缀标记不变); `InlineToken.color`、`detectAnnotation`/`toggleAnnotation` 支持颜色
+  - `app/components/markdown/Markdown.tsx`: 渲染用 `token.color ?? ANNOTATION_STYLE` (便笺卡片支持带色注解)
+  - `app/components/editor/AnnotationIcon.tsx`: 工具栏深色 icon (下划线/多行) 改浅暖白 `#f5f0e1` (原 `#4a4238` 与工具栏背景融为一体)
+  - `app/app.css`: `.tiptap` 行块式视觉样式 (行间距/标题/列表/引用/图片)
+  - `package.json`: + @tiptap/react/core/pm/starter-kit/extension-image/link
+- **色板:** BubbleMenu 最左端色块按钮 → 8 色弹层; 选区已有注解 → 更新其 color; 否则记 pendingColor 供下次应用
+- **验证:** typecheck ✓; Playwright 实测 — 编辑器显示效果无标记、选中即弹工具栏、应用 box 后保存 DB `[[结尾]]`、色板换色后 DB `[[#dc2626|结尾]]`、刷新后编辑器/卡片渲染一致 (3 色注解)、注解内输入位置跟随、往返转换 18/18
+- **最终结果:** 真 WYSIWYG 编辑器落地, 标记语法对用户不可见, 注解颜色 per-annotation 持久化。
+
 ## 2026-08-04 — 删除功能 + 编辑器空隙 + rough 注解图标 + Pusher 签名修复
 
 - **修改文件:**
