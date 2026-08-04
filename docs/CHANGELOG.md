@@ -2,6 +2,15 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-04 — 样式: app.css 显式全局初始化 + 分层重构
+
+- **修改文件:** `app/app.css`
+- **改动:**
+  - 新增 `@layer base` 完整初始化: `*, *::before, *::after, *::backdrop, ::file-selector-button` 统一 `box-sizing: border-box` 并清 margin/padding/border; html/body 排版基调 (line-height、text-size-adjust、tab-size); 标题/段落/列表默认值 (字号权重交给工具类); 链接继承颜色; 媒体元素块级化; 表单控件统一继承字体/颜色/字距; textarea `resize: vertical`; placeholder 半透明继承色; `:disabled` 光标
+  - 原 `html, body` 主题规则移入独立 base 层, `.note-card` 组件样式移入 `@layer components`
+- **重构验证:** 审计全部组件 — 样式均为显式 Tailwind 工具类, 无依赖浏览器默认值, 无需回补样式; 浏览器实测三个页面 (home/board/note): body 背景 `#f5f0e1`、便笺卡片 `#fefcf5` + 双层阴影、textarea 字体继承/resize-none/placeholder 半透明、按钮 rounded-full 覆盖 reset 等全部与重构前一致
+- **最终结果:** 显式初始化落地, 视觉零回归, 结构分层清晰。
+
 ## 2026-08-04 — 初始规格文档 (specification)
 
 - **修改文件:**
