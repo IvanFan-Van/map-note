@@ -95,3 +95,17 @@
   - `docs/specifications.md`: F2/F6/6.6/权限矩阵/视觉规范/里程碑/ADR 同步更新 (连线功能标记移除)
 - **验证:** typecheck ✓; 首页/背景板页 200, API 无 links 字段, 日志零错误
 - **最终结果:** 便笺呈现为高而窄 (240×320) 的极简单色卡片, 层次由亮度差与阴影表达; 连线功能整体移除。
+
+## 2026-08-04 — Markdown 原生渲染重构 + 行块编辑器 + 注解工具栏 + 便笺选中态
+
+- **修改文件:**
+  - `app/lib/markdown.ts` (新建): 自研迷你 Markdown 解析器 — 行级 (标题/无序/有序列表/引用/图片/段落) + 行内 (加粗/斜体/代码/链接/图片) + 7 种注解标记 (`==高亮== ^^下划线^^ [[方框]] ((圆圈)) ~~删除线~~ ××划掉×× ⟦括号⟧`, 三连标记为 multiline 变体), 含 detect/toggle 工具
+  - `app/components/markdown/Markdown.tsx` (新建): 渲染组件, 注解 span 客户端用 rough-notation `annotate()` 绘制 (颜色/粗细/多行)
+  - `app/routes/note.tsx` (重写): 行块式混合编辑器 (活动行 textarea raw + 其余行渲染, 回车拆行提交, 标题即时渲染, 方向键切换行, 输入法组合保护); 移除右侧预览面板 (占满窗口); 选中文本浮动工具栏 (8 工具/激活高亮/mirror 定位/分页滚动); 心情/天气/疲惫/进食改为模板插入 (移除字段 UI); 格式工具栏作用于活动行
+  - `app/components/board/NoteCard.tsx`: 原生 Markdown 渲染替换 react-markdown; 选中态蓝色边框 (ring-2 ring-blue-500); 移除字段状态栏; 拖拽跟随 (无蓝色 mask)
+  - `app/lib/store.ts`: 新增 `selectedNoteId`/`selectNote`
+  - `app/routes/board.tsx`: 删除 DragPreview 蓝色 mask 组件与渲染; 空白 pointerdown 取消选中; 单击便笺选中/再击进入编辑
+  - `package.json`: 移除 react-markdown/remark-gfm, 新增 rough-notation
+  - `docs/specifications.md`: F4/F5/第三方库清单同步更新
+- **验证:** 解析器单测 (行级/行内/注解 detect/toggle 全部正确); typecheck ✓; 首页/背景板/编辑器 200, 日志零错误
+- **最终结果:** Markdown 渲染零第三方依赖 (rough-notation 仅负责注解绘制), 编辑器支持行块实时渲染与文本注解, 便笺交互改为单击选中/再击编辑。

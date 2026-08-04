@@ -1,37 +1,11 @@
 import { memo } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Markdown } from "~/components/markdown/Markdown";
+import { extractImages } from "~/lib/markdown";
 import type { Note } from "~/lib/types";
 import { useBoardStore } from "~/lib/store";
 
 const NOTE_WIDTH = 240;
 const NOTE_HEIGHT = 320;
-
-const MOODS: Record<string, string> = {
-  happy: "😊",
-  neutral: "😐",
-  sad: "😔",
-  angry: "😡",
-  sleepy: "😴",
-};
-
-const WEATHERS: Record<string, string> = {
-  sunny: "☀️",
-  cloudy: "🌤",
-  rainy: "🌧",
-  snowy: "🌨",
-  stormy: "⛈",
-};
-
-export function extractImages(markdown: string): string[] {
-  const urls: string[] = [];
-  const re = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(markdown)) && urls.length < 3) {
-    urls.push(m[2]);
-  }
-  return urls;
-}
 
 function ThumbnailStack({ images }: { images: string[] }) {
   if (images.length === 0) return null;
@@ -57,12 +31,14 @@ function ThumbnailStack({ images }: { images: string[] }) {
 export const NoteCard = memo(function NoteCard({
   note,
   isEditor,
-  onClick,
+  selected,
+  onSelect,
   onMoveCommit,
 }: {
   note: Note;
   isEditor: boolean;
-  onClick: (note: Note) => void;
+  selected: boolean;
+  onSelect: (note: Note) => void;
   onMoveCommit: (noteId: string, x: number, y: number) => void;
 }) {
   const dragNote = useBoardStore((s) => s.dragNote);
@@ -94,7 +70,7 @@ export const NoteCard = memo(function NoteCard({
       if (moved) {
         const delta = Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY);
         if (delta < 5) {
-          onClick(note); // 视为点击 → 打开编辑器
+          onSelect(note); // 单击: 选中 / 再次点击已选中则进入编辑 (由父组件决定)
         } else {
           onMoveCommit(note.id, moved.previewX, moved.previewY);
         }
@@ -121,48 +97,17 @@ export const NoteCard = memo(function NoteCard({
       }}
     >
       <div
-        className="note-card h-full w-full rounded-lg cursor-pointer flex flex-col"
+        className={`note-card h-full w-full rounded-lg cursor-pointer flex flex-col ${
+          selected ? "ring-2 ring-blue-500" : ""
+        }`}
         onPointerDown={handleBodyDown}
-        onDoubleClick={() => onClick(note)}
+        onDoubleClick={() => onSelect(note)}
       >
         {images.length > 0 && <ThumbnailStack images={images} />}
 
         <div className="flex-1 min-h-0 overflow-hidden px-4 pt-3 text-[15px] leading-relaxed break-words">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              a: ({ children, ...props }) => (
-                <a {...props} className="text-blue-600 underline break-all">
-                  {children}
-                </a>
-              ),
-              img: () => null,
-              h1: ({ children }) => <div className="text-xl font-bold mt-1">{children}</div>,
-              h2: ({ children }) => <div className="text-lg font-bold mt-1">{children}</div>,
-              h3: ({ children }) => <div className="text-base font-bold mt-1">{children}</div>,
-              p: ({ children }) => <p className="mt-1">{children}</p>,
-              ul: ({ children }) => <ul className="list-disc pl-5 mt-1">{children}</ul>,
-              ol: ({ children }) => <ol className="list-decimal pl-5 mt-1">{children}</ol>,
-              li: ({ children }) => <li className="mt-0.5">{children}</li>,
-              strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-2 border-warm/30 pl-2 italic mt-1">{children}</blockquote>
-              ),
-            }}
-          >
-            {note.content}
-          </ReactMarkdown>
+          <Markdown text={note.content} />
         </div>
-
-        {/* 快捷状态栏 (固定底部) */}
-        {(note.mood || note.weather || note.fatigue != null || note.diet) && (
-          <div className="shrink-0 flex items-center gap-2 border-t border-warm/10 px-4 py-2 text-sm text-warm/70">
-            {note.mood && <span title="心情">{MOODS[note.mood] ?? "❓"}</span>}
-            {note.weather && <span title="天气">{WEATHERS[note.weather] ?? "❓"}</span>}
-            {note.fatigue != null && <span title={`疲惫 ${note.fatigue}/10`}>⚡{note.fatigue}</span>}
-            {note.diet && <span title="进食" className="truncate">🍽 {note.diet}</span>}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -87,6 +87,8 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const zoomAt = useBoardStore((s) => s.zoomAt);
   const panBy = useBoardStore((s) => s.panBy);
   const dragNote = useBoardStore((s) => s.dragNote);
+  const selectedNoteId = useBoardStore((s) => s.selectedNoteId);
+  const selectNote = useBoardStore((s) => s.selectNote);
   const applyPatch = useBoardStore((s) => s.applyPatch);
   const setMembers = useBoardStore((s) => s.setMembers);
 
@@ -171,6 +173,11 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const pinchRef = useRef<{ dist: number; midX: number; midY: number } | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    // 空白处按下 → 取消便笺选中
+    const target = e.target as HTMLElement;
+    if (!target.closest("[data-note]")) {
+      selectNote(null);
+    }
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointersRef.current.size === 1) {
       const vp = useBoardStore.getState().viewport;
@@ -241,6 +248,18 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const openNote = useCallback(
     (note: Note) => navigate(`/b/${board.id}/n/${note.id}`),
     [board.id, navigate],
+  );
+
+  // 单击便笺: 未选中 → 选中; 已选中 → 进入编辑页
+  const handleNoteSelect = useCallback(
+    (note: Note) => {
+      if (selectedNoteId === note.id) {
+        openNote(note);
+      } else {
+        selectNote(note.id);
+      }
+    },
+    [selectedNoteId, openNote, selectNote],
   );
 
   const sendInvite = async () => {
@@ -391,17 +410,13 @@ export default function Board({ loaderData }: Route.ComponentProps) {
               <NoteCard
                 note={note}
                 isEditor={isEditor}
-                onClick={openNote}
+                selected={selectedNoteId === note.id}
+                onSelect={handleNoteSelect}
                 onMoveCommit={commitMove}
               />
             </div>
           ))}
         </div>
-
-        {/* 蓝色拖拽 mask */}
-        {dragNote && (
-          <DragPreview note={notesMap[dragNote.noteId]} x={dragNote.previewX} y={dragNote.previewY} />
-        )}
 
         {/* 缩放指示 */}
         <div className="absolute bottom-4 left-4 z-[200] rounded-full bg-white/80 backdrop-blur px-3 py-1 text-sm text-warm/70">
@@ -430,30 +445,6 @@ function GridBackground({ scale }: { scale: number }) {
           "radial-gradient(circle, rgba(120,100,60,0.16) 1px, transparent 1px)",
         backgroundSize: `${size}px ${size}px`,
         transform: "translate(0,0)",
-      }}
-    />
-  );
-}
-
-function DragPreview({
-  note,
-  x,
-  y,
-}: {
-  note: Note | undefined;
-  x: number;
-  y: number;
-}) {
-  const viewport = useBoardStore((s) => s.viewport);
-  if (!note) return null;
-  return (
-    <div
-      className="absolute pointer-events-none rounded-md bg-blue-500/20 border-2 border-blue-500"
-      style={{
-        left: x * viewport.scale + viewport.viewX,
-        top: y * viewport.scale + viewport.viewY,
-        width: note.width * viewport.scale,
-        height: 200 * viewport.scale,
       }}
     />
   );

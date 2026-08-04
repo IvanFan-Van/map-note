@@ -22,6 +22,7 @@ interface BoardStore {
   notes: Record<string, Note>;
   viewport: Viewport;
   dragNote: DragNoteState | null;
+  selectedNoteId: string | null;
   members: Record<string, { name: string; avatarUrl: string | null }>;
 
   setBoardData: (notes: Note[]) => void;
@@ -33,6 +34,7 @@ interface BoardStore {
   startDragNote: (noteId: string, screenX: number, screenY: number, offsetX: number, offsetY: number) => void;
   updateDragNote: (screenX: number, screenY: number) => void;
   endDragNote: () => DragNoteState | null;
+  selectNote: (id: string | null) => void;
   setMembers: (members: Record<string, { name: string; avatarUrl: string | null }>) => void;
   applyPatch: (patch: PatchEvent) => void;
 }
@@ -49,6 +51,7 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   notes: {},
   viewport: { viewX: 0, viewY: 0, scale: 1 },
   dragNote: null,
+  selectedNoteId: null,
   members: {},
 
   setBoardData: (notes) => {
@@ -116,6 +119,8 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     set({ dragNote: null });
     return d;
   },
+
+  selectNote: (selectedNoteId) => set({ selectedNoteId }),
 
   setMembers: (members) => set({ members }),
 

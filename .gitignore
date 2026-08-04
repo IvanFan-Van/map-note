@@ -1,17 +1,17 @@
 .DS_Store
 .env
-/node_modules/
+node_modules/
 
 # React Router
-/.react-router/
-/build/
+.react-router/
+build/
 
 # Wrangler local state
-/.wrangler/
+.wrangler/
 
 # Local agent tooling
-/.agents/
+.agents/
 
 # Local agent tooling
-/.claude/
-/.playwright-cli/
+.claude/
+.playwright-cli/

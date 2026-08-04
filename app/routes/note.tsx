@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, redirect } from "react-router";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Markdown } from "~/components/markdown/Markdown";
 import { jsonApi } from "~/lib/api";
+import {
+  detectAnnotation,
+  findMarker,
+  toggleAnnotation,
+  type AnnotationType,
+} from "~/lib/markdown";
 import { getSessionUser } from "~/server/auth";
 import { getBoardDetail, getNote } from "~/server/db";
 import type { Route } from "./+types/note";
@@ -24,41 +29,113 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   return { note, board, isEditor: board.role === "editor" };
 }
 
-const MOODS: { key: string; label: string; icon: string }[] = [
-  { key: "happy", label: "开心", icon: "😊" },
-  { key: "neutral", label: "一般", icon: "😐" },
-  { key: "sad", label: "低落", icon: "😔" },
-  { key: "angry", label: "生气", icon: "😡" },
-  { key: "sleepy", label: "困倦", icon: "😴" },
+// ---------- 模板 (心情/天气/疲惫/进食) ----------
+
+const MOOD_TEMPLATES = [
+  { key: "happy", label: "😊 开心", template: "**心情** 😊 开心" },
+  { key: "neutral", label: "😐 一般", template: "**心情** 😐 一般" },
+  { key: "sad", label: "😔 低落", template: "**心情** 😔 低落" },
+  { key: "angry", label: "😡 生气", template: "**心情** 😡 生气" },
+  { key: "sleepy", label: "😴 困倦", template: "**心情** 😴 困倦" },
 ];
 
-const WEATHERS: { key: string; label: string; icon: string }[] = [
-  { key: "sunny", label: "晴", icon: "☀️" },
-  { key: "cloudy", label: "多云", icon: "🌤" },
-  { key: "rainy", label: "雨", icon: "🌧" },
-  { key: "snowy", label: "雪", icon: "🌨" },
-  { key: "stormy", label: "雷暴", icon: "⛈" },
+const WEATHER_TEMPLATES = [
+  { key: "sunny", label: "☀️ 晴", template: "**天气** ☀️ 晴" },
+  { key: "cloudy", label: "🌤 多云", template: "**天气** 🌤 多云" },
+  { key: "rainy", label: "🌧 雨", template: "**天气** 🌧 雨" },
+  { key: "snowy", label: "🌨 雪", template: "**天气** 🌨 雪" },
+  { key: "stormy", label: "⛈ 雷暴", template: "**天气** ⛈ 雷暴" },
 ];
+
+const FATIGUE_TEMPLATES = [1, 3, 5, 7, 9].map((n) => ({
+  key: String(n),
+  label: `⚡${n}`,
+  template: `**疲惫** ⚡ ${n}/10`,
+}));
+
+const DIET_TEMPLATE = { key: "diet", label: "🍽 进食", template: "**进食** 🍽 " };
+
+// ---------- 选中文本浮动工具栏 ----------
+
+const ANNOTATION_TOOLS: { id: AnnotationType | "multiline"; label: string; glyph: string }[] = [
+  { id: "underline", label: "下划线", glyph: "U̲" },
+  { id: "box", label: "方框", glyph: "▢" },
+  { id: "circle", label: "圆圈", glyph: "○" },
+  { id: "highlight", label: "高亮", glyph: "🖍" },
+  { id: "strike-through", label: "删除线", glyph: "S̶" },
+  { id: "crossed-off", label: "划掉", glyph: "✕" },
+  { id: "bracket", label: "括号", glyph: "〔〕" },
+  { id: "multiline", label: "多行", glyph: "⇕" },
+];
+
+interface FloatToolState {
+  left: number;
+  top: number;
+  start: number;
+  end: number;
+  text: string;
+}
+
+function computeFloatPos(el: HTMLTextAreaElement): { left: number; top: number } | null {
+  const { selectionStart, selectionEnd } = el;
+  if (selectionEnd <= selectionStart) return null;
+  const mirror: HTMLDivElement = document.createElement("div");
+  const style = window.getComputedStyle(el);
+  const props = [
+    "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight",
+    "letterSpacing", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
+    "boxSizing", "wordSpacing", "textTransform", "textIndent", "whiteSpace", "wordWrap",
+  ] as const;
+  for (const p of props) (mirror.style as unknown as Record<string, string>)[p] = style[p];
+  mirror.style.position = "absolute";
+  mirror.style.top = "0";
+  mirror.style.left = "-9999px";
+  mirror.style.visibility = "hidden";
+  mirror.style.width = `${el.clientWidth}px`;
+  const spanA = document.createElement("span");
+  spanA.textContent = el.value.slice(0, selectionStart);
+  const spanB = document.createElement("span");
+  spanB.textContent = el.value.slice(selectionStart, selectionEnd);
+  mirror.appendChild(spanA);
+  mirror.appendChild(spanB);
+  document.body.appendChild(mirror);
+  const rectA = spanA.getBoundingClientRect();
+  const rectB = spanB.getBoundingClientRect();
+  document.body.removeChild(mirror);
+  const left = (rectA.left + rectB.right) / 2;
+  const top = rectA.top - 10;
+  return { left, top };
+}
+
+// ---------- 编辑器 ----------
 
 export default function NoteEditor({ loaderData }: Route.ComponentProps) {
   const { note: initialNote, board, isEditor } = loaderData;
   const [content, setContent] = useState(initialNote.content);
-  const [mood, setMood] = useState<string | null>(initialNote.mood);
-  const [weather, setWeather] = useState<string | null>(initialNote.weather);
-  const [fatigue, setFatigue] = useState<number | null>(initialNote.fatigue);
-  const [diet, setDiet] = useState<string>(initialNote.diet ?? "");
   const [syncState, setSyncState] = useState<"saved" | "saving">("saved");
   const [uploading, setUploading] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 行块编辑状态
+  const lines = useMemo(() => content.split("\n"), [content]);
+  const [activeLine, setActiveLine] = useState(0);
+  const [caretTarget, setCaretTarget] = useState<"start" | "end" | null>(null);
+  const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const composingRef = useRef(false);
+
+  // 浮动工具栏状态
+  const [floatTool, setFloatTool] = useState<FloatToolState | null>(null);
+  const [toolPage, setToolPage] = useState(0);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const save = useCallback(
-    (updates: Record<string, unknown>) => {
+    (next: string) => {
       setSyncState("saving");
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
-        void jsonApi(`/api/notes/${initialNote.id}`, "PATCH", updates)
+        void jsonApi(`/api/notes/${initialNote.id}`, "PATCH", { content: next })
           .then(() => setSyncState("saved"))
           .catch(() => setSyncState("saved"));
       }, 400);
@@ -72,40 +149,182 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
     };
   }, []);
 
-  const onContentChange = (v: string) => {
-    setContent(v);
-    save({ content: v });
+  const onContentChange = useCallback(
+    (next: string) => {
+      setContent(next);
+      save(next);
+    },
+    [save],
+  );
+
+  const updateLine = useCallback(
+    (index: number, value: string) => {
+      const next = [...lines];
+      next[index] = value;
+      onContentChange(next.join("\n"));
+    },
+    [lines, onContentChange],
+  );
+
+  // 活动行切换后聚焦定位
+  useEffect(() => {
+    const el = textareaRefs.current[activeLine];
+    if (!el) return;
+    el.focus();
+    const pos = caretTarget === "start" ? 0 : el.value.length;
+    el.setSelectionRange(pos, pos);
+    setCaretTarget(null);
+  }, [activeLine, caretTarget]);
+
+  const moveTo = (index: number, target: "start" | "end") => {
+    if (index < 0 || index >= lines.length) return;
+    setActiveLine(index);
+    setCaretTarget(target);
+    setFloatTool(null);
   };
 
-  const insertAtCursor = (before: string, after = "") => {
-    const el = textareaRef.current;
+  const handleLineKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing || composingRef.current) return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const el = textareaRefs.current[activeLine];
+      const caret = el?.selectionStart ?? 0;
+      const before = lines[activeLine].slice(0, caret);
+      const after = lines[activeLine].slice(caret);
+      const next = [...lines];
+      next[activeLine] = before;
+      next.splice(activeLine + 1, 0, after);
+      onContentChange(next.join("\n"));
+      setActiveLine(activeLine + 1);
+      setCaretTarget("start");
+      setFloatTool(null);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveTo(activeLine - 1, "end");
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveTo(activeLine + 1, "end");
+    }
+  };
+
+  // 选区变化 → 浮动工具栏
+  const updateFloatTool = () => {
+    const el = textareaRefs.current[activeLine];
+    if (!el || !isEditor) return;
+    const { selectionStart, selectionEnd } = el;
+    if (selectionEnd <= selectionStart) {
+      setFloatTool(null);
+      return;
+    }
+    const pos = computeFloatPos(el);
+    if (!pos) return;
+    setFloatTool({
+      left: pos.left,
+      top: pos.top,
+      start: selectionStart,
+      end: selectionEnd,
+      text: el.value.slice(selectionStart, selectionEnd),
+    });
+    setToolPage(0);
+  };
+
+  // 浮动工具栏分页
+  const toolsPerPage = Math.max(1, Math.floor((typeof window !== "undefined" ? window.innerWidth : 600) / 52));
+  const toolPages = Math.ceil(ANNOTATION_TOOLS.length / toolsPerPage);
+  const visibleTools = ANNOTATION_TOOLS.slice(toolPage * toolsPerPage, (toolPage + 1) * toolsPerPage);
+
+  // 应用/取消注解
+  const applyTool = (id: AnnotationType | "multiline") => {
+    if (!floatTool) return;
+    if (id === "multiline") return; // multiline 是渲染增强, 直接切换三连标记由 toggleAnnotation 处理
+    const line = lines[activeLine];
+    const selText = line.slice(floatTool.start, floatTool.end);
+    const marker = findMarker(id);
+    const det = detectAnnotation(selText, id);
+    let nextText: string;
+    let nextStart = floatTool.start;
+    let nextEnd: number;
+    if (det.wrapped) {
+      nextText = line.slice(0, floatTool.start) + det.inner + line.slice(floatTool.end);
+      nextEnd = floatTool.start + det.inner.length;
+    } else {
+      const wrapped = marker.open + selText + marker.close;
+      nextText = line.slice(0, floatTool.start) + wrapped + line.slice(floatTool.end);
+      nextEnd = floatTool.start + wrapped.length;
+    }
+    updateLine(activeLine, nextText);
+    setFloatTool({ ...floatTool, text: line.slice(nextStart, nextEnd), start: nextStart, end: nextEnd });
+  };
+
+  const applyMultiline = () => {
+    if (!floatTool) return;
+    const line = lines[activeLine];
+    const selText = line.slice(floatTool.start, floatTool.end);
+    // 检测选区是否被任一注解标记包裹
+    for (const marker of ANNOTATION_TOOLS.slice(0, 7)) {
+      const id = marker.id as AnnotationType;
+      const det = detectAnnotation(selText, id);
+      if (det.wrapped) {
+        const m = findMarker(id);
+        let inner = det.inner;
+        const wrapped = (det.multiline ? m.open : m.multilineOpen) + inner + (det.multiline ? m.close : m.multilineClose);
+        const nextText = line.slice(0, floatTool.start) + wrapped + line.slice(floatTool.end);
+        updateLine(activeLine, nextText);
+        setFloatTool({ ...floatTool, text: wrapped, start: floatTool.start, end: floatTool.start + wrapped.length });
+        return;
+      }
+    }
+  };
+
+  const isToolActive = (id: AnnotationType | "multiline") => {
+    if (!floatTool) return false;
+    if (id === "multiline") {
+      for (const marker of ANNOTATION_TOOLS.slice(0, 7)) {
+        const det = detectAnnotation(floatTool.text, marker.id as AnnotationType);
+        if (det.wrapped && det.multiline) return true;
+      }
+      return false;
+    }
+    return detectAnnotation(floatTool.text, id).wrapped;
+  };
+
+  // 行内插入 (顶部工具栏与模板)
+  const insertAtCaret = (insert: string) => {
+    const el = textareaRefs.current[activeLine];
     if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = content.slice(start, end);
-    const next =
-      content.slice(0, start) + before + selected + after + content.slice(end);
-    onContentChange(next);
+    const caret = el.selectionStart ?? lines[activeLine].length;
+    const next = lines[activeLine].slice(0, caret) + insert + lines[activeLine].slice(caret);
+    updateLine(activeLine, next);
     requestAnimationFrame(() => {
       el.focus();
-      el.selectionStart = start + before.length;
-      el.selectionEnd = start + before.length + selected.length;
+      const pos = caret + insert.length;
+      el.setSelectionRange(pos, pos);
     });
+  };
+
+  const insertTemplate = (template: string) => {
+    const el = textareaRefs.current[activeLine];
+    if (!el) return;
+    const caret = el.selectionStart ?? lines[activeLine].length;
+    const atLineEnd = caret >= lines[activeLine].length;
+    const insert = atLineEnd ? template : ` ${template}`;
+    insertAtCaret(insert);
   };
 
   const uploadImage = async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     setUploading(true);
     try {
-      const dims = await new Promise<{ width: number; height: number }>(
-        (resolve, reject) => {
-          const img = new Image();
-          img.onload = () =>
-            resolve({ width: img.naturalWidth, height: img.naturalHeight });
-          img.onerror = reject;
-          img.src = URL.createObjectURL(file);
-        },
-      );
+      const dims = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
       const form = new FormData();
       form.append("file", file);
       form.append("boardId", board.id);
@@ -118,11 +337,8 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         data?: { image?: { url: string } };
         error?: { message?: string };
       };
-      if (!res.ok || !body.data?.image) {
-        throw new Error(body.error?.message ?? "上传失败");
-      }
-      const md = `\n\n![图片](${body.data.image.url})\n`;
-      onContentChange(content + md);
+      if (!res.ok || !body.data?.image) throw new Error(body.error?.message ?? "上传失败");
+      insertAtCaret(`![图片](${body.data.image.url})`);
     } catch (err) {
       alert(err instanceof Error ? err.message : "上传失败");
     } finally {
@@ -130,49 +346,13 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  const preview = useMemo(
-    () => (
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          a: ({ children, ...props }) => (
-            <a {...props} target="_blank" rel="noreferrer" className="text-blue-600 underline break-all">
-              {children}
-            </a>
-          ),
-          img: ({ src, alt }) => (
-            <img src={src} alt={alt ?? ""} className="max-w-full rounded-lg my-2 shadow-md" />
-          ),
-          h1: ({ children }) => <h1 className="text-2xl font-bold mt-4 mb-2">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-xl font-bold mt-3 mb-2">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-lg font-bold mt-3 mb-1">{children}</h3>,
-          p: ({ children }) => <p className="my-2 leading-relaxed">{children}</p>,
-          ul: ({ children }) => <ul className="list-disc pl-6 my-2">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal pl-6 my-2">{children}</ol>,
-          li: ({ children }) => <li className="my-0.5">{children}</li>,
-          blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-warm/30 pl-3 italic my-2 text-warm/80">
-              {children}
-            </blockquote>
-          ),
-          code: ({ children }) => (
-            <code className="bg-warm/10 rounded px-1 py-0.5 text-sm">{children}</code>
-          ),
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    ),
-    [content],
-  );
-
-  const toolbar = [
-    { label: "B", title: "加粗", fn: () => insertAtCursor("**", "**") },
-    { label: "I", title: "斜体", fn: () => insertAtCursor("*", "*") },
-    { label: "H", title: "标题", fn: () => insertAtCursor("## ", "") },
-    { label: "•", title: "无序列表", fn: () => insertAtCursor("- ", "") },
-    { label: "1.", title: "有序列表", fn: () => insertAtCursor("1. ", "") },
-    { label: "🔗", title: "链接", fn: () => insertAtCursor("[", "](https://)") },
+  const formatTools = [
+    { label: "B", title: "加粗", fn: () => insertAtCaret("**") },
+    { label: "I", title: "斜体", fn: () => insertAtCaret("*") },
+    { label: "H", title: "标题", fn: () => insertAtCaret("# ") },
+    { label: "•", title: "无序列表", fn: () => insertAtCaret("- ") },
+    { label: "1.", title: "有序列表", fn: () => insertAtCaret("1. ") },
+    { label: "🔗", title: "链接", fn: () => insertAtCaret("[]()") },
     { label: "🖼", title: "插入图片", fn: () => fileRef.current?.click() },
   ];
 
@@ -184,121 +364,94 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         </Link>
         <h1 className="text-lg truncate">{board.name}</h1>
         <span
-          className={`ml-auto text-sm ${
-            syncState === "saved" ? "text-green-600" : "text-warm/50"
-          }`}
+          className={`ml-auto text-sm ${syncState === "saved" ? "text-green-600" : "text-warm/50"}`}
         >
           {syncState === "saved" ? "已保存" : "保存中…"}
         </span>
       </header>
 
-      {/* 快捷状态栏 */}
-      <section className="px-4 pt-3 flex flex-wrap gap-3">
-        <QuickStatusGroup title="心情">
-          <div className="flex gap-1.5">
-            {MOODS.map((m) => (
-              <button
-                key={m.key}
-                disabled={!isEditor}
-                onClick={() => {
-                  const v = mood === m.key ? null : m.key;
-                  setMood(v);
-                  save({ mood: v });
-                }}
-                title={m.label}
-                className={`text-xl w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                  mood === m.key ? "bg-warm text-white" : "bg-white hover:bg-board"
-                }`}
-              >
-                {m.icon}
-              </button>
-            ))}
-          </div>
-        </QuickStatusGroup>
-
-        <QuickStatusGroup title="天气">
-          <div className="flex gap-1.5">
-            {WEATHERS.map((w) => (
-              <button
-                key={w.key}
-                disabled={!isEditor}
-                onClick={() => {
-                  const v = weather === w.key ? null : w.key;
-                  setWeather(v);
-                  save({ weather: v });
-                }}
-                title={w.label}
-                className={`text-xl w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-                  weather === w.key ? "bg-warm text-white" : "bg-white hover:bg-board"
-                }`}
-              >
-                {w.icon}
-              </button>
-            ))}
-          </div>
-        </QuickStatusGroup>
-
-        <QuickStatusGroup title={`疲惫 ${fatigue ?? "–"} / 10`}>
-          <div className="flex items-center gap-2 px-2">
-            <input
-              type="range"
-              min={0}
-              max={10}
-              value={fatigue ?? 0}
+      {/* 快捷插入 (模板) + 格式工具栏 */}
+      <section className="px-4 pt-3 flex flex-wrap items-center gap-2">
+        <TemplateGroup label="心情">
+          {MOOD_TEMPLATES.map((t) => (
+            <TemplateButton key={t.key} label={t.label} disabled={!isEditor} onClick={() => insertTemplate(t.template)} />
+          ))}
+        </TemplateGroup>
+        <TemplateGroup label="天气">
+          {WEATHER_TEMPLATES.map((t) => (
+            <TemplateButton key={t.key} label={t.label} disabled={!isEditor} onClick={() => insertTemplate(t.template)} />
+          ))}
+        </TemplateGroup>
+        <TemplateGroup label="疲惫">
+          {FATIGUE_TEMPLATES.map((t) => (
+            <TemplateButton key={t.key} label={t.label} disabled={!isEditor} onClick={() => insertTemplate(t.template)} />
+          ))}
+        </TemplateGroup>
+        <TemplateGroup label="进食">
+          <TemplateButton label={DIET_TEMPLATE.label} disabled={!isEditor} onClick={() => insertTemplate(DIET_TEMPLATE.template)} />
+        </TemplateGroup>
+        <div className="flex items-center gap-1 ml-auto">
+          {formatTools.map((t) => (
+            <button
+              key={t.title}
+              onClick={t.fn}
               disabled={!isEditor}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setFatigue(v);
-                save({ fatigue: v });
-              }}
-              className="w-32 accent-red-500"
-            />
-            <span className="text-lg w-6 text-center">{fatigue != null ? fatigue : "–"}</span>
-          </div>
-        </QuickStatusGroup>
-
-        <QuickStatusGroup title="进食">
-          <input
-            value={diet}
-            disabled={!isEditor}
-            onChange={(e) => {
-              setDiet(e.target.value);
-              save({ diet: e.target.value });
-            }}
-            placeholder="早餐: 豆浆油条…"
-            className="w-52 rounded-xl bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-          />
-        </QuickStatusGroup>
+              title={t.title}
+              className="w-8 h-8 rounded-lg bg-white shadow-sm hover:bg-board text-sm font-semibold flex items-center justify-center disabled:opacity-40"
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </section>
 
       {!isEditor && (
         <p className="px-4 pt-2 text-sm text-warm/50">你是观看者, 无法编辑内容。</p>
       )}
 
-      {/* 编辑 / 预览 */}
-      <main className="flex-1 flex gap-4 px-4 py-4 min-h-0">
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex items-center gap-1 mb-2">
-            {toolbar.map((t) => (
-              <button
-                key={t.title}
-                onClick={t.fn}
+      {/* 行块编辑器 (占满窗口) */}
+      <main
+        className="flex-1 min-h-0 overflow-y-auto px-4 py-4"
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) setFloatTool(null);
+        }}
+      >
+        <div className="max-w-2xl mx-auto bg-white/60 rounded-2xl p-5 min-h-full">
+          {lines.map((line, i) =>
+            i === activeLine && isEditor ? (
+              <textarea
+                key={i}
+                ref={(el) => {
+                  textareaRefs.current[i] = el;
+                }}
+                value={line}
                 disabled={!isEditor}
-                title={t.title}
-                className="w-9 h-9 rounded-xl bg-white shadow-sm hover:bg-board text-sm font-semibold flex items-center justify-center disabled:opacity-40"
+                onChange={(e) => updateLine(i, e.target.value)}
+                onKeyDown={handleLineKeyDown}
+                onCompositionStart={() => (composingRef.current = true)}
+                onCompositionEnd={() => {
+                  composingRef.current = false;
+                }}
+                onSelect={updateFloatTool}
+                onMouseUp={updateFloatTool}
+                onKeyUp={updateFloatTool}
+                placeholder="用 Markdown 记录此刻… 输入 # 标题, - 列表, 选中文本添加注解"
+                className="w-full bg-transparent outline-none resize-none text-base leading-relaxed font-sans min-h-[1.5em]"
+                style={{ height: "auto" }}
+              />
+            ) : (
+              <div
+                key={i}
+                onClick={() => {
+                  if (!isEditor) return;
+                  moveTo(i, "end");
+                }}
+                className="cursor-text py-0.5 min-h-[1.5em]"
               >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => onContentChange(e.target.value)}
-            disabled={!isEditor}
-            placeholder="用 Markdown 记录此刻…"
-            className="flex-1 min-h-[60vh] w-full rounded-2xl bg-white/80 p-4 text-base leading-relaxed outline-none focus:ring-2 focus:ring-blue-300 resize-none font-sans"
-          />
+                <Markdown text={line} />
+              </div>
+            ),
+          )}
           <input
             ref={fileRef}
             type="file"
@@ -312,30 +465,74 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
           />
           {uploading && <p className="mt-2 text-sm text-warm/50">图片上传中…</p>}
         </div>
+      </main>
 
-        <div className="flex-1 min-w-0 bg-white/60 rounded-2xl p-5 overflow-auto max-h-[calc(100vh-220px)]">
-          {content.trim() ? (
-            preview
-          ) : (
-            <p className="text-warm/40 text-center mt-10">预览区 — 输入 Markdown 后实时显示</p>
+      {/* 选中文本浮动工具栏 */}
+      {floatTool && isEditor && (
+        <div
+          className="fixed z-50 flex items-center gap-0.5 rounded-xl bg-warm text-white shadow-xl px-1.5 py-1"
+          style={{
+            left: floatTool.left,
+            top: floatTool.top,
+            transform: "translateX(-50%) translateY(-100%)",
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {visibleTools.map((t) => (
+            <button
+              key={t.id}
+              title={t.label}
+              onClick={() => {
+                if (t.id === "multiline") applyMultiline();
+                else applyTool(t.id);
+              }}
+              className={`w-9 h-8 rounded-lg text-sm flex items-center justify-center transition-colors ${
+                isToolActive(t.id) ? "bg-blue-500 text-white" : "hover:bg-white/15"
+              }`}
+            >
+              {t.glyph}
+            </button>
+          ))}
+          {toolPages > 1 && (
+            <button
+              title="下一页"
+              onClick={() => setToolPage((p) => (p + 1) % toolPages)}
+              className="w-9 h-8 rounded-lg text-sm flex items-center justify-center hover:bg-white/15"
+            >
+              {toolPage < toolPages - 1 ? "›" : "‹"}
+            </button>
           )}
         </div>
-      </main>
+      )}
     </div>
   );
 }
 
-function QuickStatusGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function TemplateGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl bg-white/70 p-2.5 shadow-sm">
-      <p className="text-xs text-warm/50 mb-1.5">{title}</p>
+    <div className="flex items-center gap-1 rounded-xl bg-white/70 px-2 py-1 shadow-sm">
+      <span className="text-xs text-warm/50 mr-1">{label}</span>
       {children}
     </div>
+  );
+}
+
+function TemplateButton({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-lg bg-board/60 px-2 py-1 text-sm hover:bg-board disabled:opacity-40 transition-colors"
+    >
+      {label}
+    </button>
   );
 }
