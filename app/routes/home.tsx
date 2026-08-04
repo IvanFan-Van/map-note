@@ -165,11 +165,7 @@ function BoardsView({
     setName("");
   }, [fetcher, name]);
 
-  const createdBoard = fetcher.data?.ok ? fetcher.data.board : null;
-
-  useEffect(() => {
-    if (createdBoard) navigate(`/b/${createdBoard.id}`);
-  }, [createdBoard, navigate]);
+  // 创建后不自动跳转, 留在首页列表 (fetcher 提交后自动 revalidate 刷新列表)
 
   return (
     <main className="min-h-screen max-w-4xl mx-auto px-6 py-8">

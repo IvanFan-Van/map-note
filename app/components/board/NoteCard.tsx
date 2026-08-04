@@ -31,14 +31,12 @@ function ThumbnailStack({ images }: { images: string[] }) {
 export const NoteCard = memo(function NoteCard({
   note,
   isEditor,
-  selected,
-  onSelect,
+  onClick,
   onMoveCommit,
 }: {
   note: Note;
   isEditor: boolean;
-  selected: boolean;
-  onSelect: (note: Note) => void;
+  onClick: (note: Note) => void;
   onMoveCommit: (noteId: string, x: number, y: number) => void;
 }) {
   const dragNote = useBoardStore((s) => s.dragNote);
@@ -82,9 +80,8 @@ export const NoteCard = memo(function NoteCard({
       if (dragging) {
         const moved = endDragNote();
         if (moved) onMoveCommit(note.id, moved.previewX, moved.previewY);
-      } else {
-        onSelect(note); // 单击: 选中 / 再次点击已选中则进入编辑 (由父组件决定)
       }
+      // 单击无操作; 双击由 onDoubleClick 进入编辑页
       noteEl.releasePointerCapture(e.pointerId);
       noteEl.removeEventListener("pointermove", onMove);
       noteEl.removeEventListener("pointerup", onUp);
@@ -107,11 +104,9 @@ export const NoteCard = memo(function NoteCard({
       }}
     >
       <div
-        className={`note-card h-full w-full rounded-lg cursor-pointer flex flex-col ${
-          selected ? "ring-2 ring-blue-500" : ""
-        }`}
+        className="note-card h-full w-full rounded-lg cursor-pointer flex flex-col"
         onPointerDown={handleBodyDown}
-        onDoubleClick={() => onSelect(note)}
+        onDoubleClick={() => onClick(note)}
       >
         {images.length > 0 && <ThumbnailStack images={images} />}
 

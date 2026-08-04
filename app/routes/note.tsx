@@ -88,9 +88,11 @@ function computeFloatPos(el: HTMLTextAreaElement): { left: number; top: number }
     "boxSizing", "wordSpacing", "textTransform", "textIndent", "whiteSpace", "wordWrap",
   ] as const;
   for (const p of props) (mirror.style as unknown as Record<string, string>)[p] = style[p];
+  // mirror 与 textarea 同位置对齐, 子 span 的视口坐标即选区坐标
+  const taRect = el.getBoundingClientRect();
   mirror.style.position = "absolute";
-  mirror.style.top = "0";
-  mirror.style.left = "0";
+  mirror.style.top = `${taRect.top}px`;
+  mirror.style.left = `${taRect.left}px`;
   mirror.style.visibility = "hidden";
   mirror.style.width = `${el.clientWidth}px`;
   const spanA = document.createElement("span");
@@ -105,7 +107,8 @@ function computeFloatPos(el: HTMLTextAreaElement): { left: number; top: number }
   document.body.removeChild(mirror);
   const left = (rectA.left + rectB.right) / 2;
   const top = rectA.top - 10;
-  return { left, top };
+  // textarea 若滚动, 内容坐标需减去滚动偏移
+  return { left: left - el.scrollLeft, top: top - el.scrollTop };
 }
 
 // ---------- 编辑器 ----------
@@ -456,6 +459,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
                   textareaRefs.current[i] = el;
                 }}
                 value={line}
+                rows={1}
                 disabled={!isEditor}
                 onChange={(e) => updateLine(i, e.target.value)}
                 onKeyDown={handleLineKeyDown}
@@ -467,8 +471,8 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
                 onMouseUp={updateFloatTool}
                 onKeyUp={updateFloatTool}
                 placeholder="用 Markdown 记录此刻… 输入 # 标题, - 列表, 选中文本添加注解"
-                className="w-full bg-transparent outline-none resize-none text-base leading-relaxed font-sans min-h-[1.5em]"
-                style={{ height: "auto" }}
+                className="w-full bg-transparent outline-none resize-none text-base leading-relaxed font-sans py-0.5 min-h-[1.5em]"
+                style={{ height: "auto", minHeight: "1.5em", fieldSizing: "content" }}
               />
             ) : (
               <div

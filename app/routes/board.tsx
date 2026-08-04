@@ -87,8 +87,6 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const zoomAt = useBoardStore((s) => s.zoomAt);
   const panBy = useBoardStore((s) => s.panBy);
   const dragNote = useBoardStore((s) => s.dragNote);
-  const selectedNoteId = useBoardStore((s) => s.selectedNoteId);
-  const selectNote = useBoardStore((s) => s.selectNote);
   const applyPatch = useBoardStore((s) => s.applyPatch);
   const setMembers = useBoardStore((s) => s.setMembers);
 
@@ -135,20 +133,21 @@ export default function Board({ loaderData }: Route.ComponentProps) {
     return unsubscribe;
   }, [board.id, pusherKey, pusherCluster, user.id, applyPatch, setMembers]);
 
-  // 空白处双击创建便笺
+  // 空白处双击创建便笺 (需确认; 创建后不跳转, 留在画布)
   const handleCanvasDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       if (!isEditor) return;
+      const el = e.target as HTMLElement;
+      if (el.closest("[data-note]")) return;
+      if (!window.confirm("在当前位置新建一张便笺?")) return;
       const vp = useBoardStore.getState().viewport;
       const wx = (e.clientX - vp.viewX) / vp.scale;
       const wy = (e.clientY - vp.viewY) / vp.scale;
-      const el = e.target as HTMLElement;
-      if (el.closest("[data-note]")) return;
-      void jsonApi<{ noteId: string }>("/api/notes", "POST", { boardId: board.id, x: wx, y: wy })
-        .then((r) => navigate(`/b/${board.id}/n/${r.noteId}`))
-        .catch(() => setToast("创建便笺失败"));
+      void jsonApi("/api/notes", "POST", { boardId: board.id, x: wx, y: wy }).catch(() =>
+        setToast("创建便笺失败"),
+      );
     },
-    [isEditor, board.id, navigate],
+    [isEditor, board.id],
   );
 
   // 拖拽提交: 先乐观放置本地, PUT 成功后用服务端返回值校准,
@@ -173,11 +172,6 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const pinchRef = useRef<{ dist: number; midX: number; midY: number } | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // 空白处按下 → 取消便笺选中
-    const target = e.target as HTMLElement;
-    if (!target.closest("[data-note]")) {
-      selectNote(null);
-    }
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointersRef.current.size === 1) {
       const vp = useBoardStore.getState().viewport;
@@ -248,18 +242,6 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const openNote = useCallback(
     (note: Note) => navigate(`/b/${board.id}/n/${note.id}`),
     [board.id, navigate],
-  );
-
-  // 单击便笺: 未选中 → 选中; 已选中 → 进入编辑页
-  const handleNoteSelect = useCallback(
-    (note: Note) => {
-      if (selectedNoteId === note.id) {
-        openNote(note);
-      } else {
-        selectNote(note.id);
-      }
-    },
-    [selectedNoteId, openNote, selectNote],
   );
 
   const sendInvite = async () => {
@@ -410,8 +392,7 @@ export default function Board({ loaderData }: Route.ComponentProps) {
               <NoteCard
                 note={note}
                 isEditor={isEditor}
-                selected={selectedNoteId === note.id}
-                onSelect={handleNoteSelect}
+                onClick={openNote}
                 onMoveCommit={commitMove}
               />
             </div>
