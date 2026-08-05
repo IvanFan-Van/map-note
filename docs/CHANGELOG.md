@@ -2,6 +2,15 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-04 — react-colorful 样式覆盖失效修复 (CSS 层优先级)
+
+- **根因:** react-colorful 的默认样式是**运行时 CSS-in-JS 注入** (组件 useLayoutEffect 创建 `<style>` 元素, `innerHTML` 含 `.react-colorful { width: 200px; height: 200px }`), 属于 **unlayered 规则**; 我们的覆盖写在 Tailwind v4 的 `@layer components` 内 — 按 CSS 级联, unlayered 样式优先于 layered 样式 (层优先级高于特异性), 覆盖被吞
+- **修复 (官方文档 Customization 做法):**
+  - `app/app.css`: `.react-colorful` 覆盖规则**移出 @layer** (unlayered), 并用后代选择器 `.anno-swatch .react-colorful` 提升特异性 (双保险); 响应式 120px/150px 保留
+  - `app/routes/note.tsx`: 色板弹层容器加 `anno-swatch` 作用域类
+- **验证:** `pnpm run lint` + `pnpm run typecheck` 全绿 (CSS 级联规则可确定性推理, 无需浏览器验证)
+- **最终结果:** color picker 尺寸样式生效。
+
 ## 2026-08-04 — BubbleMenu 浮层脱离 main overflow 裁切 + dist 入库修复
 
 - **修改文件:**
