@@ -458,6 +458,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         <BubbleMenu
           editor={editor}
           shouldShow={({ editor }) => !editor.state.selection.empty}
+          appendTo={() => document.body}
           className="z-50"
         >
           <div className="flex items-center gap-0.5 rounded-xl bg-warm text-white shadow-xl px-1.5 py-1">
