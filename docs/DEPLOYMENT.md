@@ -3,6 +3,8 @@
 co-note 面向 Cloudflare Workers 部署: React Router SSR 构建产物 + D1 数据库 + R2 图片存储。
 每次 push 到 `main` 自动完成: 检查 → 构建 → D1 迁移 → secrets 注入 → 部署。
 
+> **当前生产地址: https://co-note.blues74285700.workers.dev** (2026-08-05 首次部署)
+
 ## 架构
 
 - **Worker**: `workers/app.ts` (React Router 请求处理器), 静态资源由 wrangler assets 托管

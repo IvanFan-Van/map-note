@@ -2,6 +2,18 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-05 — Cloudflare Workers CI/CD 上线 + 生产部署
+
+- **CI/CD 落地:**
+  - `.github/workflows/ci.yml`: PR/推送 → pnpm install + lint + typecheck + build
+  - `.github/workflows/deploy.yml`: push main / workflow_dispatch → 检查/构建 → `wrangler d1 migrations apply --remote` → secrets 注入 (`wrangler secret bulk`, 7 个应用密钥) → `wrangler deploy`
+  - `package.json` 补 `packageManager: pnpm@10.34.1` (pnpm/action-setup v4 需要)
+- **构建修复:** `react-router build` 原本失败 — v7 与 cloudflare 插件集成缺口 (SSR 钩子读 `dist/server/.vite/manifest.json`, 插件默认输出 `dist/ssr`)。修复: `environments.ssr.build.outDir = "dist/server"`; `react-router.config.ts` `buildDirectory: "dist"`; `wrangler.jsonc` assets → `./dist/client`
+- **生产资源初始化:** D1 数据库 (5361eb18, 迁移 0001/0002 已应用)、R2 bucket co-note-images 已存在; Google OAuth 生产回调 URL 待用户添加
+- **部署结果:** 首次 CI 通过; Deploy 经 token 权限修复 (旧 token 仅 account/user read → 更新为含 Workers Scripts/D1/R2 Edit) 后成功 — **生产地址 `https://co-note.blues74285700.workers.dev`**, SSR 登录页/静态资源/路由验证通过
+- **验证:** 本地 build + `wrangler deploy --dry-run` 通过 (worker 2.27MB + 30 assets); 生产 `GET /` (Accept: text/html) 200 SSR 正常; 未登录访问 auth 路由 302
+- **待办:** 用户添加 Google OAuth 回调; 生产冒烟 (登录/建板/便笺/图片/双账号实时)
+
 ## 2026-08-05 — README 文档 (英文 + 中文)
 
 - `README.md` (重写): 替换 React Router 模板遗留 (原文档为 npm 安装流程, 与项目 pnpm 冲突); 覆盖功能、技术栈、快速开始、环境变量清单、本地数据库初始化、开发/质量检查命令、便笺 Markdown 注解语法、双用户本地测试、Cloudflare 部署方式、目录结构
