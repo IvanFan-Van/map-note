@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useFetcher, useNavigate, useRevalidator, useSearchParams } from "react-router";
+import {
+  Link,
+  useFetcher,
+  useNavigate,
+  useRevalidator,
+  useSearchParams,
+} from "react-router";
 import { ConfirmDialog } from "~/components/ui/ConfirmDialog";
 import { jsonApi } from "~/lib/api";
 import type { BoardSummary, Invitation } from "~/lib/types";
@@ -54,7 +60,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   if (!user) {
     return <LoginGate />;
   }
-  return <BoardsView user={user} boards={boards} defaultBoardId={defaultBoardId} />;
+  return (
+    <BoardsView user={user} boards={boards} defaultBoardId={defaultBoardId} />
+  );
 }
 
 function LoginGate() {
@@ -63,7 +71,10 @@ function LoginGate() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-6 px-6">
       <div className="text-center space-y-3">
-        <h1 className="text-6xl" style={{ fontFamily: "Patrick Hand, LeMiXiaoNaiPaoTi" }}>
+        <h1
+          className="text-6xl"
+          style={{ fontFamily: "Patrick Hand, LeMiXiaoNaiPaoTi" }}
+        >
           co-note
         </h1>
         <p className="text-xl text-warm/70">一块自由钉便笺的共享桌面</p>
@@ -75,9 +86,7 @@ function LoginGate() {
         <GoogleIcon />
         使用 Google 登录
       </Link>
-      {loginError && (
-        <p className="text-sm text-red-500">登录失败, 请重试。</p>
-      )}
+      {loginError && <p className="text-sm text-red-500">登录失败, 请重试。</p>}
     </main>
   );
 }
@@ -126,8 +135,12 @@ function BoardsView({
   const [inboxOpen, setInboxOpen] = useState(false);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [inboxLoading, setInboxLoading] = useState(false);
-  const [defaultBoardId, setDefaultBoardId] = useState<string | null>(defaultBoardIdInitial);
-  const [deleteBoardDraft, setDeleteBoardDraft] = useState<BoardSummary | null>(null);
+  const [defaultBoardId, setDefaultBoardId] = useState<string | null>(
+    defaultBoardIdInitial
+  );
+  const [deleteBoardDraft, setDeleteBoardDraft] = useState<BoardSummary | null>(
+    null
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 删除背景板: 确认后删除 + 默认板置空 + 列表刷新
@@ -146,7 +159,10 @@ function BoardsView({
   const loadInbox = useCallback(async () => {
     setInboxLoading(true);
     try {
-      const data = await jsonApi<{ invitations: Invitation[] }>("/api/invitations/inbox", "GET");
+      const data = await jsonApi<{ invitations: Invitation[] }>(
+        "/api/invitations/inbox",
+        "GET"
+      );
       setInvitations(data.invitations ?? []);
     } catch {
       setInvitations([]);
@@ -161,9 +177,13 @@ function BoardsView({
 
   const handleInvitation = async (id: string, action: "accept" | "decline") => {
     try {
-      const res = await jsonApi<{ boardId?: string }>(`/api/invitations/${id}`, "POST", {
-        action,
-      });
+      const res = await jsonApi<{ boardId?: string }>(
+        `/api/invitations/${id}`,
+        "POST",
+        {
+          action,
+        }
+      );
       await loadInbox();
       revalidator.revalidate();
       if (action === "accept" && res.boardId) {
@@ -195,7 +215,14 @@ function BoardsView({
               className="relative rounded-full bg-white p-2.5 shadow-sm hover:shadow-md transition-shadow"
               title="收件箱"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
                 <path d="M22 12h-6l-2 3h-4l-2-3H2" />
                 <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
               </svg>
@@ -222,21 +249,28 @@ function BoardsView({
                         className="rounded-xl bg-board/60 p-3 text-sm space-y-2"
                       >
                         <p>
-                          <span className="font-semibold">{inv.inviterName}</span>{" "}
-                          邀请你加入 <span className="font-semibold">{inv.boardName}</span>
+                          <span className="font-semibold">
+                            {inv.inviterName}
+                          </span>{" "}
+                          邀请你加入{" "}
+                          <span className="font-semibold">{inv.boardName}</span>
                           <span className="ml-1 text-warm/50">
                             ({inv.role === "editor" ? "编辑者" : "观看者"})
                           </span>
                         </p>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => void handleInvitation(inv.id, "accept")}
+                            onClick={() =>
+                              void handleInvitation(inv.id, "accept")
+                            }
                             className="flex-1 rounded-xl bg-warm text-white py-1.5 hover:opacity-90"
                           >
                             接受
                           </button>
                           <button
-                            onClick={() => void handleInvitation(inv.id, "decline")}
+                            onClick={() =>
+                              void handleInvitation(inv.id, "decline")
+                            }
                             className="flex-1 rounded-xl bg-board py-1.5 hover:bg-warm/10"
                           >
                             拒绝
@@ -252,50 +286,52 @@ function BoardsView({
 
           {/* 账户菜单 */}
           <div className="relative">
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-4 shadow-sm hover:shadow-md transition-shadow"
-          >
-            {user.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt=""
-                className="w-8 h-8 rounded-full"
-              />
-            ) : (
-              <span className="w-8 h-8 rounded-full bg-note flex items-center justify-center">
-                {user.name.slice(0, 1)}
-              </span>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-4 shadow-sm hover:shadow-md transition-shadow"
+            >
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt=""
+                  className="w-8 h-8 rounded-full"
+                />
+              ) : (
+                <span className="w-8 h-8 rounded-full bg-note flex items-center justify-center">
+                  {user.name.slice(0, 1)}
+                </span>
+              )}
+              <span className="text-lg">{user.name}</span>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-12 w-64 rounded-2xl bg-white shadow-xl p-4 space-y-3 z-20">
+                <div className="text-center">
+                  <p className="text-lg">{user.name}</p>
+                  <p className="text-sm text-warm/60">{user.email}</p>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-board/60 px-3 py-2">
+                  <span className="text-sm text-warm/70 break-all">
+                    {user.id}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(user.id);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    }}
+                    className="ml-2 shrink-0 rounded-lg bg-white px-2 py-1 text-xs shadow-sm hover:bg-board"
+                  >
+                    {copied ? "已复制" : "复制"}
+                  </button>
+                </div>
+                <form method="post" action="/auth/logout" className="pt-1">
+                  <button className="w-full rounded-xl bg-board/60 px-3 py-2 text-center text-sm hover:bg-board transition-colors">
+                    退出登录
+                  </button>
+                </form>
+              </div>
             )}
-            <span className="text-lg">{user.name}</span>
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-12 w-64 rounded-2xl bg-white shadow-xl p-4 space-y-3 z-20">
-              <div className="text-center">
-                <p className="text-lg">{user.name}</p>
-                <p className="text-sm text-warm/60">{user.email}</p>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-board/60 px-3 py-2">
-                <span className="text-sm text-warm/70 break-all">{user.id}</span>
-                <button
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(user.id);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 1500);
-                  }}
-                  className="ml-2 shrink-0 rounded-lg bg-white px-2 py-1 text-xs shadow-sm hover:bg-board"
-                >
-                  {copied ? "已复制" : "复制"}
-                </button>
-              </div>
-              <form method="post" action="/auth/logout" className="pt-1">
-                <button className="w-full rounded-xl bg-board/60 px-3 py-2 text-center text-sm hover:bg-board transition-colors">
-                  退出登录
-                </button>
-              </form>
-            </div>
-          )}
-        </div>
+          </div>
         </div>
       </header>
 
@@ -305,7 +341,8 @@ function BoardsView({
           className="mb-4 flex items-center justify-between rounded-2xl bg-warm text-white px-5 py-3 shadow-md hover:opacity-95 transition-opacity"
         >
           <span className="text-lg">
-            继续进入 <strong>{boards.find((b) => b.id === defaultBoardId)?.name}</strong>
+            继续进入{" "}
+            <strong>{boards.find((b) => b.id === defaultBoardId)?.name}</strong>
           </span>
           <span>→</span>
         </Link>
@@ -372,7 +409,14 @@ function BoardsView({
                         className="text-warm/30 hover:text-red-500 text-lg"
                         title="删除背景板"
                       >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                        >
                           <path d="M3 6h18" />
                           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
                           <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -385,16 +429,22 @@ function BoardsView({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        void jsonApi(`/api/boards/${b.id}?action=default`, "POST", {}).then(() =>
-                          setDefaultBoardId(b.id),
-                        );
+                        void jsonApi(
+                          `/api/boards/${b.id}?action=default`,
+                          "POST",
+                          {}
+                        ).then(() => setDefaultBoardId(b.id));
                       }}
                       className={`shrink-0 text-lg ${
                         b.id === defaultBoardId
                           ? "text-amber-500"
                           : "text-warm/30 hover:text-amber-400"
                       }`}
-                      title={b.id === defaultBoardId ? "当前默认背景板" : "设为默认背景板"}
+                      title={
+                        b.id === defaultBoardId
+                          ? "当前默认背景板"
+                          : "设为默认背景板"
+                      }
                     >
                       {b.id === defaultBoardId ? "★" : "☆"}
                     </button>

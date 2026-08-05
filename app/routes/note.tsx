@@ -130,7 +130,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
     onUpdate: ({ editor }) => save(jsonToMarkdown(editor.getJSON())),
   });
 
-  const { containerRef, overlayRef } = useAnnotationRenderer(editor);
+  const { containerRef, underlayRef, overlayRef } = useAnnotationRenderer(editor);
 
   // 订阅编辑器状态 (激活态/跨行/当前注解 attrs)
   const editorState = useEditorState({
@@ -426,6 +426,13 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         <div className="max-w-2xl mx-auto bg-white/60 rounded-2xl p-5 min-h-full">
           {editor && (
             <div ref={containerRef} className="relative">
+              {/* highlight 画在文本下层 (粗线贯穿文字, 上层会遮住字体) */}
+              <svg
+                ref={underlayRef}
+                className="absolute inset-0 pointer-events-none"
+                style={{ overflow: "visible" }}
+                aria-hidden="true"
+              />
               <EditorContent
                 editor={editor}
                 className="tiptap text-base leading-relaxed font-sans"
@@ -475,7 +482,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
               >
                 <span
                   className="w-4 h-4 rounded-full border border-white/60"
-                  style={{ backgroundColor: annoColor ?? "#ffffff" }}
+                  style={{ backgroundColor: pickerColor }}
                 />
               </button>
               {swatchOpen && (

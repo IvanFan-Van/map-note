@@ -13,6 +13,9 @@ import { ANNOTATION_STYLE, seedOf, type AnnotationType } from "~/lib/markdown";
 
 export function useAnnotationRenderer(editor: Editor | null) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // underlay: highlight 画在文本下层 (与 rough-notation 卡片语义一致,
+  // 粗线贯穿文字高度, 在文字上层会遮住字体)
+  const underlayRef = useRef<SVGSVGElement>(null);
   const overlayRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -20,9 +23,11 @@ export function useAnnotationRenderer(editor: Editor | null) {
 
     const draw = () => {
       const container = containerRef.current;
+      const underlay = underlayRef.current;
       const overlay = overlayRef.current;
-      if (!container || !overlay) return;
+      if (!container || !underlay || !overlay) return;
       overlay.replaceChildren();
+      underlay.replaceChildren();
       const overlayRect = overlay.getBoundingClientRect();
       container
         .querySelectorAll<HTMLElement>("span[data-annotation]")
@@ -39,13 +44,14 @@ export function useAnnotationRenderer(editor: Editor | null) {
             ...(type === "bracket" ? { brackets: ["left", "right"] as const } : {}),
           };
           const seed = seedOf(`${type}|${multiline}|${color ?? ""}`);
+          const svg = type === "highlight" ? underlay : overlay;
           const rects = multiline
             ? Array.from(el.getClientRects())
             : [el.getBoundingClientRect()];
           for (const r of rects) {
             if (r.width === 0 || r.height === 0) continue;
             renderAnnotation(
-              overlay,
+              svg,
               { x: r.left - overlayRect.left, y: r.top - overlayRect.top, w: r.width, h: r.height },
               config,
               0,
@@ -73,5 +79,5 @@ export function useAnnotationRenderer(editor: Editor | null) {
     };
   }, [editor]);
 
-  return { containerRef, overlayRef };
+  return { containerRef, underlayRef, overlayRef };
 }

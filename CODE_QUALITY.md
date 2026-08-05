@@ -43,7 +43,8 @@
 - **A 级: 死状态 `members`**(`store.ts:25,36,52,120`)。`board.tsx:146-151` 调用了 `setMembers` 写入 store,但渲染读的是本地 `membersLocal` state(`board.tsx:93`),**store.members 从未被任何代码读取**。要么删除 store.members 与 setMembers(推荐,board.tsx 顺带删两行),要么让渲染改读 store —— 当前是"两个状态源,实际用了一个"的迷惑状态。
 - **A 级: 缺 `reset()`**。`setBoardData` 覆盖 notes,但 `dragNote` / `viewport` / `members`(若保留)跨板残留。加一个 `resetBoard()`(一行 `set({ notes:{}, viewport:{viewX:0,viewY:0,scale:1}, dragNote:null })`)比在调用方逐个清理更内聚。
 - **B 级: 坐标换算函数未被使用**。`screenToWorld`(store.ts:44)与本文件 `worldToScreen` 一同导出,但 `board.tsx:174` 与 `NoteCard.tsx:77-78` 各自手写 `(clientX - viewX) / scale`,`board.tsx:145` 也是。三处手写 = 三个潜在 bug 点(视口公式改一处漏两处)。直接用导出的 `screenToWorld` 即可。
-> **批注 (2026-08-05 复核)**: 论据需修正 — `screenToWorld` 实际被 `store.ts:105` (updateDragNote, 便笺拖拽坐标换算) 使用; 完全无调用方的是 `worldToScreen`。结论不变: board.tsx / NoteCard 两处手写换算应改用导出的 `screenToWorld`, 无调用的 `worldToScreen` 建议删除。
+> **批注 (2026-08-05 复核)**: 论据需修正 — `screenToWorld` 实际被 `store.ts:105` (updateDragNote, 便笺拖拽坐标换算) 使用; 完全无调用方的是 `worldToWorld`。结论不变: board.tsx / NoteCard 两处手写换算应改用导出的 `screenToWorld`, 无调用的 `worldToWorld` 建议删除。
+> **评审回应 (2026-08-05)**: 批注属实,采纳。原论据将 `screenToWorld` 误判为无调用方 —— 忽略了 `store.ts` 内部 `updateDragNote` 对它的使用,是我的疏漏。重构结果与批注方向一致: `worldToWorld` 已删除, `board.tsx:139` / `NoteCard.tsx:71` 手写换算统一改为导入 `screenToWorld`。
 
 ### 1.4 `pusher.ts`(64 行)
 - **A 级(已知缺陷): 单例 + `auth.params.boardId` 固化**(`pusher.ts:11-20`)。`initPusher(key, cluster, boardId)` 只在首次调用时生效,切换背景板后 auth 参数陈旧,导致订阅失败(实测板 B 鉴权 400)。修复是删除 `boardId` 参数 —— 服务端可从 `channel_name` 解析,前端传参纯属冗余,删掉还能简化 `board.tsx` loader 的传参。
@@ -164,6 +165,7 @@
 - `wrangler.jsonc` 的 `compatibility_date: "2026-07-01"` 超出运行时支持被静默回退到 `2025-11-25`(dev 日志可见)—— 配置与实际行为不一致,是质量问题而非功能问题,应改为受支持的日期。
 - **A 级: package.json 未用依赖**。`react-markdown`、`remark-gfm`(被自研 Markdown.tsx 替代)、`clsx`、`lucide-react` 均无任何引用,应从 dependencies 移除(以及 vite.config.ts 的 include 清单中对应项)。死依赖会误导后人以为项目在用它们。
 > **批注 (2026-08-05 复核)**: 该断言不准确 — `react-markdown` / `remark-gfm` 并不在 package.json dependencies 中(已核验依赖清单), 它们只残留在 `vite.config.ts` 的 `optimizeDeps.include`(dev 日志有 "Failed to resolve dependency" 警告)。正确清理目标: vite.config.ts 的 include 清单; package.json 侧的死依赖只有 `clsx` / `lucide-react`。
+> **评审回应 (2026-08-05)**: 批注属实,采纳。评审时未重新核验依赖清单、引用了早期版本的记忆,是我的疏漏。P1 已正确清理: vite.config.ts include 移除 react-markdown/remark-gfm 残留并补注释, clsx/lucide-react 从 package.json 移除,与批注指出的清理目标完全一致。
 
 ---
 
@@ -179,6 +181,7 @@
 | X6 | `store.members` 死状态 | store.ts:25,120 / board.tsx:146-151 | A | 删除或改读 |
 | X7 | links 死代码 | db.ts:150,290-291 / package.json 死依赖 | A | 清理 SQL 与依赖 |
 > **批注 (2026-08-05 复核)**: 建议不完整 — `links` 表仍存在于 schema (migrations/0001) 且从未迁移删除; 仅删 SQL 会让 deleteBoard/deleteNote 遗留孤儿 links 行。完整方案: 新增迁移 `DROP TABLE links` + 删除 db.ts 两处 SQL, 一并处理。另外 package.json 侧死依赖仅 `clsx` / `lucide-react`(react-markdown/remark-gfm 只残留在 vite.config include, 见 §6.3 批注)。
+> **评审回应 (2026-08-05)**: 批注属实且更完整,采纳。原建议只删 SQL 确实会在 `links` 表仍存在的情况下使删除操作遗留孤儿行。P1 按批注完整执行: 新增 `migrations/0002_drop_links.sql`(已应用)+ 删除 db.ts 两处 links SQL。
 | X8 | `board.tsx` action 死代码 | board.tsx:42-77 | A | 删除 |
 | X9 | 头像 `key={i}` | board.tsx:360,370 | A | 用 `m.id` |
 
@@ -208,4 +211,57 @@
 
 ---
 
-*评审完成时间: 2026-08-05。基线 4b93606。*
+## 9. 重构复核与二次评估(2026-08-05,基线 `bb0fb77`)
+
+> 开发者按批注完成 P1~P4 重构(清理死代码 / apiError 统一 / 依赖方向与重复合并 / 小修)。本评审对每项重构做了源码核验 + typecheck/lint 验证 + Playwright 实测。
+
+### 9.1 验收结果
+
+| 批次 | 内容 | 核验结果 |
+| --- | --- | --- |
+| P1 | 删 `board.tsx` action 死代码 | ✅ 已删,文件瘦身 71 行 |
+| P1 | store: 删 `members`/`worldToWorld`,新增 `resetBoard()` | ✅ 且 `resetBoard` 在数据初始化 effect 中先 reset 再 setBoardData(board.tsx:96-99),"同路由切板组件复用"场景正确 |
+| P1 | 手写坐标换算统一 `screenToWorld` | ✅ board.tsx:139 / NoteCard.tsx:71 均改为导入 |
+| P1 | `0002_drop_links.sql` + 删 db.ts links SQL | ✅ 迁移已创建并应用,db.ts 两处 links 语句已删 |
+| P1 | `moveNote` 去 zIndex 死参数 | ✅ note-position.tsx 同步简化 |
+| P1 | 删 clsx/lucide-react、vite include 清理 | ✅ 与 §6.3 批注完全一致 |
+| P1 | Pusher 单例去 boardId(切板 403 根因) | 🔴 **修复不完整,引入全量订阅失败回归,见 9.2** |
+| P1 | 头像 `key={i}` → `key={id}` | ✅ |
+| P2 | `apiError` 统一 12 文件 31 处 | ✅ 实现简洁、有服务端用途注释;`Content-Type` 头统一 |
+| P3 | `ANNOTATION_STYLE` 移至 lib/markdown.ts | ✅ 依赖方向倒置消除 |
+| P3 | `seedOf` 双实现合并 | ✅ 单一共享实现,消除历史漂移 |
+| P3 | `constants.ts` 共享频道/事件常量 | ✅ 两端引用一致 |
+| P4 | 保存失败 error 态 | ✅ `syncState` 增加 `"error"`,UI 红色"保存失败" |
+| P4 | home loadInbox 改 jsonApi + LoadedUser | ✅ |
+| P4 | 共享 COOKIE_BASE(server/cookies.ts) | ✅ 两处配置合并,注释说明 secure 待生产开启 |
+| P4 | compatibility_date 修正 | ✅ 消除静默回退 |
+
+**工程验证**: `pnpm typecheck` / `pnpm lint` 均零错误通过。
+
+### 9.2 🔴 新发现回归: 订阅全量失败(P1 引入,必须立即修复)
+
+- **现象(Playwright 实测)**: 进入背景板后首个请求即为
+  `[POST] /api/pusher/auth => [400] Bad Request` —— **所有背景板的实时订阅均失败**,不再局限于"切板后"(修复前是首板 200、次板 400)。
+- **根因**: P1 删除了客户端的 `auth.params.boardId`(`lib/pusher.ts` 已不再发送该参数),但服务端 `pusher-auth.tsx:17,22` 仍执行 `match[1] !== boardId` 校验,此时 `boardId = String(form.get("boardId") ?? "")` 恒为空串 → 恒 400。
+- **更隐蔽的一点**: 顶部状态仍显示"已连接"——因为 `onConnected` 由 WebSocket 连接状态触发(连接成功),而**频道订阅失败**不改变该状态。用户看到绿点,实际收不到任何实时事件,问题被 UI 掩盖。
+- **修复**(服务端一处,与批注方向一致):
+  ```ts
+  const match = channelName.match(/^presence-board-(.+)$/);
+  if (!match) return new Response("频道不合法", { status: 400 });
+  const boardId = match[1];
+  // 删除 form.get("boardId") 与 boardChannel(boardId) !== channelName 的重复校验
+  ```
+- **连带观察**: 建议为订阅失败(`pusher:subscription_error`)绑定提示,避免"已连接"假象。
+
+### 9.3 次要遗留(不影响本轮验收结论)
+
+- `waitUntil` 用法不一致: `api/note-position.tsx:27` 已用 `context.cloudflare.ctx.waitUntil(broadcastPatch(...))` 确保广播在 worker 退出前完成,而 `api/note.tsx` / `api/notes.tsx` 仍为裸调用 —— 行为等价(内部已 catch),但一致性可顺手统一。
+- 批注 1 提及的 `resetBoard` 依赖 `[notes]`(loader 数据引用),同板数据更新时会 reset+set 冗余执行 —— 当前 loader 仅在路由参数变化时重跑,无实际影响,无需处理。
+
+### 9.4 结论
+
+P1~P4 的**工程质量与执行完整度均为优秀**(16 项验收 15 项到位),三条批注全部合理且已被采纳执行。唯一阻断项是 9.2 的 Pusher 鉴权回归 —— 属"修复一个 bug 引入另一个"的典型半程重构,一行服务端代码即可闭环,修复后本文件 §1.4 的 R1 缺陷即彻底关闭。
+
+---
+
+*评审完成时间: 2026-08-05。基线 bb0fb77(重构后)。*
