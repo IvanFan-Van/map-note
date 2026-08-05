@@ -2,6 +2,11 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-05 — README 文档 (英文 + 中文)
+
+- `README.md` (重写): 替换 React Router 模板遗留 (原文档为 npm 安装流程, 与项目 pnpm 冲突); 覆盖功能、技术栈、快速开始、环境变量清单、本地数据库初始化、开发/质量检查命令、便笺 Markdown 注解语法、双用户本地测试、Cloudflare 部署方式、目录结构
+- `README.zh-CN.md` (新建): 中文版, 与英文对应
+
 ## 2026-08-05 — highlight 遮字 (双 SVG 层) + 色块跟随 picker + Pusher 订阅回归修复
 
 - **Bug 1 — highlight 遮住字体:** 编辑器注解单一 overlay svg 位于文本之上, highlight 是贯穿文字高度的粗线 (strokeWidth ≈ rect.h × 0.95) 直接盖住文字。修复: 双 SVG 层 — underlay (highlight, 位于 EditorContent 之前, 文本绘制其上) + overlay (其他注解, 位于之后), 复刻 rough-notation 卡片渲染的 DOM 顺序语义 (annotationRenderer.ts / note.tsx)
