@@ -96,6 +96,34 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
   const [inviteMsg, setInviteMsg] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // 双击新建便笺的确认草稿 (世界坐标); 非阻塞确认, 避免 window.confirm
+  // 冻结事件循环导致指针 down/up 失衡、手势状态机残留 (无法平移)
+  const [createDraft, setCreateDraft] = useState<{ wx: number; wy: number } | null>(null);
+
+  // 平移与缩放手势状态机
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const panRef = useRef<{ startX: number; startY: number; viewX: number; viewY: number } | null>(null);
+  const pinchRef = useRef<{ dist: number; midX: number; midY: number } | null>(null);
+
+  // 手势状态兜底: 失焦/页面隐藏/指针取消时清空, 防止残留 pointerId
+  // 使单指拖动被误判为双指缩放 (平移失效不可恢复)
+  const resetGestures = useCallback(() => {
+    pointersRef.current.clear();
+    panRef.current = null;
+    pinchRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    const onCleanup = () => resetGestures();
+    window.addEventListener("blur", onCleanup);
+    window.addEventListener("pointercancel", onCleanup);
+    document.addEventListener("visibilitychange", onCleanup);
+    return () => {
+      window.removeEventListener("blur", onCleanup);
+      window.removeEventListener("pointercancel", onCleanup);
+      document.removeEventListener("visibilitychange", onCleanup);
+    };
+  }, [resetGestures]);
 
   // 初始化数据与实时订阅
   useEffect(() => {
@@ -132,22 +160,32 @@ export default function Board({ loaderData }: Route.ComponentProps) {
     return unsubscribe;
   }, [board.id, pusherKey, pusherCluster, user.id, applyPatch, setMembers]);
 
-  // 空白处双击创建便笺 (需确认; 创建后不跳转, 留在画布)
+  // 空白处双击创建便笺 (非阻塞确认; 创建后不跳转, 留在画布)
   const handleCanvasDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       if (!isEditor) return;
+      // 双击是明确的手势边界: 重置指针状态机, 防止残留 pointerId 使
+      // 后续单指拖动被误判为双指缩放 (无法平移)
+      resetGestures();
       const el = e.target as HTMLElement;
       if (el.closest("[data-note]")) return;
-      if (!window.confirm("在当前位置新建一张便笺?")) return;
       const vp = useBoardStore.getState().viewport;
-      const wx = (e.clientX - vp.viewX) / vp.scale;
-      const wy = (e.clientY - vp.viewY) / vp.scale;
-      void jsonApi("/api/notes", "POST", { boardId: board.id, x: wx, y: wy }).catch(() =>
-        setToast("创建便笺失败"),
-      );
+      setCreateDraft({
+        wx: (e.clientX - vp.viewX) / vp.scale,
+        wy: (e.clientY - vp.viewY) / vp.scale,
+      });
     },
-    [isEditor, board.id],
+    [isEditor, resetGestures],
   );
+
+  const confirmCreate = () => {
+    if (!createDraft) return;
+    const draft = createDraft;
+    setCreateDraft(null);
+    void jsonApi("/api/notes", "POST", { boardId: board.id, x: draft.wx, y: draft.wy }).catch(
+      () => setToast("创建便笺失败"),
+    );
+  };
 
   // 拖拽提交: 先乐观放置本地, PUT 成功后用服务端返回值校准,
   // 不依赖 Pusher 回环 (订阅/触发失败时放置仍生效)
@@ -166,10 +204,6 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   );
 
   // 平移与缩放手势
-  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
-  const panRef = useRef<{ startX: number; startY: number; viewX: number; viewY: number } | null>(null);
-  const pinchRef = useRef<{ dist: number; midX: number; midY: number } | null>(null);
-
   const handlePointerDown = (e: React.PointerEvent) => {
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointersRef.current.size === 1) {
@@ -407,6 +441,27 @@ export default function Board({ loaderData }: Route.ComponentProps) {
       {toast && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[300] rounded-full bg-warm text-white px-4 py-2 text-sm shadow-lg">
           {toast}
+        </div>
+      )}
+
+      {/* 双击新建便笺的确认弹层 (非阻塞) */}
+      {createDraft && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-[300] rounded-2xl bg-warm text-white px-5 py-3 shadow-xl flex items-center gap-4">
+          <span className="text-sm">在当前位置新建一张便笺?</span>
+          <div className="flex gap-2">
+            <button
+              onClick={confirmCreate}
+              className="rounded-lg bg-white text-warm px-3 py-1 text-sm font-semibold hover:opacity-90"
+            >
+              创建
+            </button>
+            <button
+              onClick={() => setCreateDraft(null)}
+              className="rounded-lg bg-white/15 px-3 py-1 text-sm hover:bg-white/25"
+            >
+              取消
+            </button>
+          </div>
         </div>
       )}
     </div>
