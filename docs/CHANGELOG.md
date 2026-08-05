@@ -2,6 +2,14 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-05 — highlight 遮字 (双 SVG 层) + 色块跟随 picker + Pusher 订阅回归修复
+
+- **Bug 1 — highlight 遮住字体:** 编辑器注解单一 overlay svg 位于文本之上, highlight 是贯穿文字高度的粗线 (strokeWidth ≈ rect.h × 0.95) 直接盖住文字。修复: 双 SVG 层 — underlay (highlight, 位于 EditorContent 之前, 文本绘制其上) + overlay (其他注解, 位于之后), 复刻 rough-notation 卡片渲染的 DOM 顺序语义 (annotationRenderer.ts / note.tsx)
+- **Bug 2 — 色块不随 picker 变化:** 色块读 `annoColor` (仅无注解场景更新), 而 picker 受控值是 `pickerColor` (拖动实时更新); 改读 `pickerColor` (note.tsx:485)
+- **回归修复 — Pusher 订阅全量失败 (P1 引入):** P1 移除客户端 `auth.params.boardId` 后, 服务端 pusher-auth.tsx 仍校验 `match[1] !== form.boardId` (客户端不再发送 → 恒空串 → 恒 400 → 所有订阅失败; UI "已连接" 由 WS 连接触发, 订阅失败被掩盖)。修复: 背景板 ID 改为从 `channel_name` 解析 (pusher-js 自动携带, 服务端以此为准并校验成员关系), 删除 boardId 参数与重复校验。此问题由评审复核 (CODE_QUALITY.md §9.2) 发现
+- **验证:** lint + typecheck 全绿; 实测 — highlight 黄线进入下层 svg (box 在上层)、hue 拖动色块实时变色 (蓝→紫蓝)、pusher auth 200、双用户实时同步正常 (user2 未刷新 4→3)
+- **最终结果:** 两个用户体验 bug 修复, 订阅回归修复, 实时同步恢复。
+
 ## 2026-08-05 — 代码质量重构 (依据 CODE_QUALITY.md 评审, P1~P4)
 
 - **背景:** 复核 CODE_QUALITY.md 评审, 对 3 处不准确判断在文档中加 `>` 批注 (react-markdown/remark-gfm 不在 dependencies 而在 vite include; screenToWorld 实际被使用 (无调用的是 worldToScreen); links 清理需连带 DROP TABLE 迁移)
