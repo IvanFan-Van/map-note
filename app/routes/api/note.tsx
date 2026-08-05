@@ -1,3 +1,4 @@
+import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
 import { deleteNote, getNote, now, updateNote } from "~/server/db";
 import { assertEditor, broadcastPatch } from "~/server/permissions";
@@ -8,10 +9,7 @@ export async function action({ request, context, params }: Route.ActionArgs) {
   const user = await requireUser(request, env);
   const note = await getNote(env, params.id);
   if (!note) {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "NOT_FOUND", message: "便笺不存在" } }),
-      { status: 404, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(404, "NOT_FOUND", "便笺不存在");
   }
   await assertEditor(env, note.boardId, user.id);
 
@@ -33,10 +31,7 @@ export async function action({ request, context, params }: Route.ActionArgs) {
     if (body.diet === null || typeof body.diet === "string") changes.diet = body.diet as string | null;
     const updated = await updateNote(env, note.id, changes);
     if (!updated) {
-      return new Response(
-        JSON.stringify({ ok: false, error: { code: "NOT_FOUND", message: "便笺不存在" } }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      );
+      return apiError(404, "NOT_FOUND", "便笺不存在");
     }
     context.cloudflare.ctx.waitUntil(
       broadcastPatch(env, note.boardId, {
@@ -73,8 +68,5 @@ export async function action({ request, context, params }: Route.ActionArgs) {
     return { ok: true, data: { deleted: true } };
   }
 
-  return new Response(
-    JSON.stringify({ ok: false, error: { code: "METHOD_NOT_ALLOWED", message: "不支持的请求方法" } }),
-    { status: 405, headers: { "Content-Type": "application/json" } },
-  );
+  return apiError(405, "METHOD_NOT_ALLOWED", "不支持的请求方法");
 }

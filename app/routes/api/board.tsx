@@ -1,3 +1,4 @@
+import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
 import { deleteBoard, getBoardDetail, listNotes, setDefaultBoard } from "~/server/db";
 import { assertMember } from "~/server/permissions";
@@ -8,10 +9,7 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const user = await requireUser(request, env);
   const board = await getBoardDetail(env, params.id, user.id);
   if (!board) {
-    throw new Response(
-      JSON.stringify({ ok: false, error: { code: "FORBIDDEN", message: "你不是该背景板的成员" } }),
-      { status: 403, headers: { "Content-Type": "application/json" } },
-    );
+    throw apiError(403, "FORBIDDEN", "你不是该背景板的成员");
   }
   const notes = await listNotes(env, params.id);
   return { ok: true, data: { board, notes } };
@@ -29,22 +27,13 @@ export async function action({ request, context, params }: Route.ActionArgs) {
   if (request.method === "DELETE") {
     const board = await getBoardDetail(env, params.id, user.id);
     if (!board) {
-      return new Response(
-        JSON.stringify({ ok: false, error: { code: "NOT_FOUND", message: "背景板不存在" } }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      );
+      return apiError(404, "NOT_FOUND", "背景板不存在");
     }
     if (board.role !== "editor") {
-      return new Response(
-        JSON.stringify({ ok: false, error: { code: "FORBIDDEN", message: "观看者无删除权限" } }),
-        { status: 403, headers: { "Content-Type": "application/json" } },
-      );
+      return apiError(403, "FORBIDDEN", "观看者无删除权限");
     }
     await deleteBoard(env, params.id);
     return { ok: true, data: { boardId: params.id } };
   }
-  return new Response(
-    JSON.stringify({ ok: false, error: { code: "METHOD_NOT_ALLOWED", message: "不支持的请求方法" } }),
-    { status: 405, headers: { "Content-Type": "application/json" } },
-  );
+  return apiError(405, "METHOD_NOT_ALLOWED", "不支持的请求方法");
 }

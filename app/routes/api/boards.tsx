@@ -1,3 +1,4 @@
+import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
 import { createBoard, getUserSettings, listBoardsForUser } from "~/server/db";
 import type { Route } from "./+types/boards";
@@ -24,8 +25,5 @@ export async function action({ request, context }: Route.ActionArgs) {
     const board = await createBoard(env, user.id, name);
     return { ok: true, data: { board } };
   }
-  return new Response(
-    JSON.stringify({ ok: false, error: { code: "METHOD_NOT_ALLOWED", message: "不支持的请求方法" } }),
-    { status: 405, headers: { "Content-Type": "application/json" } },
-  );
+  return apiError(405, "METHOD_NOT_ALLOWED", "不支持的请求方法");
 }

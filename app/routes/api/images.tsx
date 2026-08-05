@@ -1,3 +1,4 @@
+import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
 import { getBoardDetail, newId } from "~/server/db";
 import { assertEditor } from "~/server/permissions";
@@ -10,19 +11,13 @@ export async function action({ request, context }: Route.ActionArgs) {
   const env = context.cloudflare.env;
   const user = await requireUser(request, env);
   if (request.method !== "POST") {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "METHOD_NOT_ALLOWED", message: "不支持的请求方法" } }),
-      { status: 405, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(405, "METHOD_NOT_ALLOWED", "不支持的请求方法");
   }
   let form: FormData;
   try {
     form = await request.formData();
   } catch {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "INVALID_INPUT", message: "表单解析失败" } }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(400, "INVALID_INPUT", "表单解析失败");
   }
   const file = form.get("file");
   const boardId = String(form.get("boardId") ?? "");
@@ -30,29 +25,17 @@ export async function action({ request, context }: Route.ActionArgs) {
   const width = Number(form.get("width") ?? 0);
   const height = Number(form.get("height") ?? 0);
   if (!(file instanceof File) || !file.size) {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "INVALID_INPUT", message: "缺少图片文件" } }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(400, "INVALID_INPUT", "缺少图片文件");
   }
   if (!ALLOWED_TYPES.has(file.type)) {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "INVALID_TYPE", message: "仅支持 PNG / JPG / WebP / GIF" } }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(400, "INVALID_TYPE", "仅支持 PNG / JPG / WebP / GIF");
   }
   if (file.size > MAX_SIZE) {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "TOO_LARGE", message: "图片不能超过 5MB" } }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(400, "TOO_LARGE", "图片不能超过 5MB");
   }
   const board = await getBoardDetail(env, boardId, user.id);
   if (!board) {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "FORBIDDEN", message: "你不是该背景板的成员" } }),
-      { status: 403, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(403, "FORBIDDEN", "你不是该背景板的成员");
   }
   await assertEditor(env, boardId, user.id);
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : file.type === "image/gif" ? "gif" : "jpg";

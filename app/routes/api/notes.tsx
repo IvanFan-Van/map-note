@@ -1,3 +1,4 @@
+import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
 import { createNote, getBoardDetail } from "~/server/db";
 import { assertEditor, broadcastPatch } from "~/server/permissions";
@@ -8,10 +9,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   const env = context.cloudflare.env;
   const user = await requireUser(request, env);
   if (request.method !== "POST") {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "METHOD_NOT_ALLOWED", message: "不支持的请求方法" } }),
-      { status: 405, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(405, "METHOD_NOT_ALLOWED", "不支持的请求方法");
   }
   const body = (await request.json().catch(() => ({}))) as {
     boardId?: unknown;
@@ -22,17 +20,11 @@ export async function action({ request, context }: Route.ActionArgs) {
   };
   const boardId = String(body.boardId ?? "");
   if (!boardId || typeof body.x !== "number" || typeof body.y !== "number") {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "INVALID_INPUT", message: "缺少必要参数" } }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(400, "INVALID_INPUT", "缺少必要参数");
   }
   const board = await getBoardDetail(env, boardId, user.id);
   if (!board) {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "NOT_FOUND", message: "背景板不存在" } }),
-      { status: 404, headers: { "Content-Type": "application/json" } },
-    );
+    return apiError(404, "NOT_FOUND", "背景板不存在");
   }
   await assertEditor(env, boardId, user.id);
   const note = await createNote(env, boardId, user.id, {

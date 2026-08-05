@@ -41,3 +41,11 @@ export function jsonApi<T>(path: string, method: string, body?: unknown): Promis
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
+
+/** 服务端错误响应构造 (统一 { ok:false, error:{ code, message } } 与 Content-Type) */
+export function apiError(status: number, code: string, message: string): Response {
+  return new Response(
+    JSON.stringify({ ok: false, error: { code, message } }),
+    { status, headers: { "Content-Type": "application/json" } },
+  );
+}
