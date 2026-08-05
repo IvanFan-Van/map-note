@@ -2,12 +2,13 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { md5 } from "@noble/hashes/legacy.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
+import { BOARD_CHANNEL_PREFIX, PATCH_EVENT } from "~/lib/constants";
+
+export { PATCH_EVENT };
 
 export function boardChannel(boardId: string): string {
-  return `presence-board-${boardId}`;
+  return `${BOARD_CHANNEL_PREFIX}${boardId}`;
 }
-
-export const PATCH_EVENT = "board:patch";
 
 /**
  * Pusher 服务端触发 (纯 fetch 实现)。

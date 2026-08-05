@@ -1,5 +1,6 @@
 import Pusher from "pusher-js";
 import type { PatchEvent } from "~/lib/types";
+import { BOARD_CHANNEL_PREFIX, PATCH_EVENT } from "~/lib/constants";
 
 let pusher: Pusher | null = null;
 
@@ -37,10 +38,10 @@ export function subscribeBoard(
   handlers: BoardChannelHandlers,
 ): () => void {
   const p = initPusher(key, cluster);
-  const channelName = `presence-board-${boardId}`;
+  const channelName = `${BOARD_CHANNEL_PREFIX}${boardId}`;
   const channel = p.subscribe(channelName);
 
-  channel.bind("board:patch", handlers.onPatch);
+  channel.bind(PATCH_EVENT, handlers.onPatch);
   channel.bind("pusher:subscription_succeeded", (members: { members: Record<string, BoardMemberInfo> }) => {
     handlers.onMembers(members.members);
     handlers.onConnected();

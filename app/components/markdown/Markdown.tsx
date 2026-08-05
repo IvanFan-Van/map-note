@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef } from "react";
 import { annotate } from "rough-notation";
-import type { RoughAnnotationConfig, RoughAnnotationType } from "rough-notation/lib/model.js";
 import {
+  ANNOTATION_STYLE,
   inlineText,
   parseBlocks,
   parseInline,
@@ -9,19 +9,6 @@ import {
   type Block,
   type InlineToken,
 } from "~/lib/markdown";
-
-export const ANNOTATION_STYLE: Record<
-  AnnotationType,
-  { type: RoughAnnotationType; color: string; strokeWidth: number; brackets?: RoughAnnotationConfig["brackets"] }
-> = {
-  underline: { type: "underline", color: "#4a4238", strokeWidth: 1.4 },
-  box: { type: "box", color: "#3b82f6", strokeWidth: 1.4 },
-  circle: { type: "circle", color: "#3b82f6", strokeWidth: 1.4 },
-  highlight: { type: "highlight", color: "#fde68a", strokeWidth: 7 },
-  "strike-through": { type: "strike-through", color: "#dc2626", strokeWidth: 1.4 },
-  "crossed-off": { type: "crossed-off", color: "#dc2626", strokeWidth: 1.4 },
-  bracket: { type: "bracket", color: "#3b82f6", strokeWidth: 1.4, brackets: ["left", "right"] },
-};
 
 export const Markdown = memo(function Markdown({
   text,

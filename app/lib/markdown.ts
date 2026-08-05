@@ -6,6 +6,7 @@
  * 注解 (rough-notation 持久化): ==高亮== ^^下划线^^ [[方框]] ((圆圈)) ~~删除线~~ ××划掉×× ⟦括号⟧
  *   三连标记 (=== ^^^ [[[ ((( ~~~ ××× ⟦⟦) 表示 multiline 变体 (多行文本每行分别标注)
  */
+import type { RoughAnnotationConfig, RoughAnnotationType } from "rough-notation/lib/model.js";
 
 export type AnnotationType =
   | "underline"
@@ -346,4 +347,30 @@ export function toggleAnnotation(
   const close = multiline ? m.multilineClose : m.close;
   const prefix = color ? `#${color.replace(/^#/, "")}|` : "";
   return { text: open + prefix + text + close, multiline, color };
+}
+
+// ---------- 注解渲染样式与 seed (编辑器/卡片/工具栏共享) ----------
+
+/** 各注解的 rough 绘制样式 (正文渲染默认值; 带色标记 #hex| 会覆盖 color) */
+export const ANNOTATION_STYLE: Record<
+  AnnotationType,
+  { type: RoughAnnotationType; color: string; strokeWidth: number; brackets?: RoughAnnotationConfig["brackets"] }
+> = {
+  underline: { type: "underline", color: "#4a4238", strokeWidth: 1.4 },
+  box: { type: "box", color: "#3b82f6", strokeWidth: 1.4 },
+  circle: { type: "circle", color: "#3b82f6", strokeWidth: 1.4 },
+  highlight: { type: "highlight", color: "#fde68a", strokeWidth: 7 },
+  "strike-through": { type: "strike-through", color: "#dc2626", strokeWidth: 1.4 },
+  "crossed-off": { type: "crossed-off", color: "#dc2626", strokeWidth: 1.4 },
+  bracket: { type: "bracket", color: "#3b82f6", strokeWidth: 1.4, brackets: ["left", "right"] },
+};
+
+/**
+ * 注解 rough 绘制的固定 seed (同一输入 → 同一形状, 避免重渲染抖动)。
+ * 编辑器 overlay 与工具栏图标共享此实现, 保证两处算法一致。
+ */
+export function seedOf(key: string): number {
+  let seed = 0;
+  for (const ch of key) seed = (seed * 31 + ch.charCodeAt(0)) % 2147483647;
+  return seed || 1;
 }

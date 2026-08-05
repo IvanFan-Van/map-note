@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { renderAnnotation } from "rough-notation/lib/render.js";
 import type { RoughAnnotationConfig } from "rough-notation/lib/model.js";
-import type { AnnotationType } from "~/lib/markdown";
+import { seedOf, type AnnotationType } from "~/lib/markdown";
 
 /** 各注解的 rough 绘制色 (工具栏深底背景上用浅色系, 与正文 ANNOTATION_STYLE 分离) */
 const ICON_COLOR: Record<AnnotationType, string> = {
@@ -13,12 +13,6 @@ const ICON_COLOR: Record<AnnotationType, string> = {
   "crossed-off": "#dc2626",
   bracket: "#3b82f6",
 };
-
-function seedOf(type: string): number {
-  let seed = 0;
-  for (const ch of type) seed += ch.charCodeAt(0);
-  return seed;
-}
 
 /**
  * 用 rough-notation 的渲染管线在 SVG 中绘制注解效果图标
