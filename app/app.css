@@ -224,7 +224,7 @@
    是运行时注入到 head 的 unlayered 规则, layered 规则优先级更低会被覆盖;
    并用后代选择器提升特异性 (官方文档 Customization 的做法)。 */
 .anno-swatch .react-colorful {
-  width: 120px;
+  width: 200px;
   height: 120px;
 }
 

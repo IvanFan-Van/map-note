@@ -1,4 +1,5 @@
 import { Mark } from "@tiptap/core";
+import type { EditorState } from "@tiptap/pm/state";
 import type { Mark as PMMark } from "@tiptap/pm/model";
 import type { AnnotationType } from "~/lib/markdown";
 import { ANNOTATION_MARK_NAME } from "~/lib/tiptap";
@@ -59,10 +60,10 @@ export const AnnotationMark = Mark.create({
           if (state.doc.resolve(from).start() !== state.doc.resolve(to).start()) {
             return false;
           }
-          const marks = state.selection.$from.marks();
-          const existing = marks.find(
-            (m) => m.type.name === ANNOTATION_MARK_NAME,
-          ) as PMMark | undefined;
+          // 不用 $from.marks(): 选区起点恰为 mark 起点 (文本节点边界,
+          // textOffset === 0) 时 marks() 只返回前一个节点的 marks, 检测不到
+          // 已应用的注解; 与 TipTap isMarkActive 一致, 遍历选区内文本节点
+          const existing = findAnnotationInSelection(state, from, to);
           if (existing) {
             if (existing.attrs.annotation === type) {
               commands.unsetMark(ANNOTATION_MARK_NAME);
@@ -86,10 +87,8 @@ export const AnnotationMark = Mark.create({
       setAnnotationColor:
         (color) =>
         ({ commands, state }) => {
-          const marks = state.selection.$from.marks();
-          const existing = marks.find(
-            (m) => m.type.name === ANNOTATION_MARK_NAME,
-          ) as PMMark | undefined;
+          const { from, to } = state.selection;
+          const existing = findAnnotationInSelection(state, from, to);
           if (!existing) return false;
           commands.updateAttributes(ANNOTATION_MARK_NAME, { color });
           return true;
@@ -97,3 +96,15 @@ export const AnnotationMark = Mark.create({
     };
   },
 });
+
+/** 遍历选区内的文本节点查找 annotation mark (不受 $from.marks() 边界交集问题影响) */
+function findAnnotationInSelection(state: EditorState, from: number, to: number): PMMark | null {
+  let existing: PMMark | null = null;
+  state.doc.nodesBetween(from, to, (node) => {
+    if (!existing && node.isText) {
+      const m = node.marks.find((mm) => mm.type.name === ANNOTATION_MARK_NAME);
+      if (m) existing = m as PMMark;
+    }
+  });
+  return existing;
+}
