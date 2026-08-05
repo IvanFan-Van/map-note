@@ -4,11 +4,16 @@ import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import ImageExt from "@tiptap/extension-image";
+import { HexColorPicker } from "react-colorful";
 import { AnnotationIcon } from "~/components/editor/AnnotationIcon";
 import { AnnotationMark } from "~/components/editor/annotationMark";
 import { useAnnotationRenderer } from "~/components/editor/annotationRenderer";
 import { jsonApi } from "~/lib/api";
-import { markdownToJSON, jsonToMarkdown, ANNOTATION_MARK_NAME } from "~/lib/tiptap";
+import {
+  markdownToJSON,
+  jsonToMarkdown,
+  ANNOTATION_MARK_NAME,
+} from "~/lib/tiptap";
 import type { AnnotationType } from "~/lib/markdown";
 import { getSessionUser } from "~/server/auth";
 import { getBoardDetail, getNote } from "~/server/db";
@@ -18,7 +23,9 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   const env = context.cloudflare.env;
   const user = await getSessionUser(request, env);
   if (!user) {
-    return redirect(`/auth/login?returnTo=/b/${params.boardId}/n/${params.noteId}`);
+    return redirect(
+      `/auth/login?returnTo=/b/${params.boardId}/n/${params.noteId}`
+    );
   }
   const note = await getNote(env, params.noteId);
   if (!note) {
@@ -59,27 +66,19 @@ const DIET_TEMPLATE = { key: "diet", label: "🍽 进食", template: "**进食**
 
 // ---------- 注解工具 ----------
 
-const ANNOTATION_TOOLS: { id: AnnotationType | "multiline"; label: string }[] = [
-  { id: "underline", label: "下划线" },
-  { id: "box", label: "方框" },
-  { id: "circle", label: "圆圈" },
-  { id: "highlight", label: "高亮" },
-  { id: "strike-through", label: "删除线" },
-  { id: "crossed-off", label: "划掉" },
-  { id: "bracket", label: "括号" },
-  { id: "multiline", label: "多行" },
-];
+const ANNOTATION_TOOLS: { id: AnnotationType | "multiline"; label: string }[] =
+  [
+    { id: "underline", label: "下划线" },
+    { id: "box", label: "方框" },
+    { id: "circle", label: "圆圈" },
+    { id: "highlight", label: "高亮" },
+    { id: "strike-through", label: "删除线" },
+    { id: "crossed-off", label: "划掉" },
+    { id: "bracket", label: "括号" },
+    { id: "multiline", label: "多行" },
+  ];
 
-const ANNOTATION_COLORS = [
-  "#3b82f6",
-  "#dc2626",
-  "#e11d48",
-  "#f59e0b",
-  "#22c55e",
-  "#8b5cf6",
-  "#ec4899",
-  "#4a4238",
-];
+const DEFAULT_ANNOTATION_COLOR = "#3b82f6";
 
 export default function NoteEditor({ loaderData }: Route.ComponentProps) {
   const { note: initialNote, board, isEditor } = loaderData;
@@ -88,6 +87,8 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
   // 待用注解颜色: 选择颜色但当前选区无注解时暂存, 应用注解时使用
   const [annoColor, setAnnoColor] = useState<string | null>(null);
   const [swatchOpen, setSwatchOpen] = useState(false);
+  // 颜色选择器受控值 (拖动实时预览, 松开鼠标才应用)
+  const [pickerColor, setPickerColor] = useState(DEFAULT_ANNOTATION_COLOR);
   const [toolPage, setToolPage] = useState(0);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -103,7 +104,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
           .catch(() => setSyncState("saved"));
       }, 400);
     },
-    [initialNote.id],
+    [initialNote.id]
   );
 
   useEffect(() => {
@@ -122,7 +123,9 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
     ],
     content: {
       type: "doc",
-      content: initialNote.content.split("\n").map((line) => markdownToJSON(line)),
+      content: initialNote.content
+        .split("\n")
+        .map((line) => markdownToJSON(line)),
     },
     onUpdate: ({ editor }) => save(jsonToMarkdown(editor.getJSON())),
   });
@@ -133,16 +136,32 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
   const editorState = useEditorState({
     editor,
     selector: ({ editor }) => {
-      if (!editor) return { activeTypes: {} as Record<string, boolean>, multilineActive: false, crossLine: false, annoAttrs: null as Record<string, unknown> | null };
+      if (!editor)
+        return {
+          activeTypes: {} as Record<string, boolean>,
+          multilineActive: false,
+          crossLine: false,
+          annoAttrs: null as Record<string, unknown> | null,
+        };
       const { from, to } = editor.state.selection;
-      const crossLine = editor.state.doc.resolve(from).start() !== editor.state.doc.resolve(to).start();
+      const crossLine =
+        editor.state.doc.resolve(from).start() !==
+        editor.state.doc.resolve(to).start();
       const activeTypes: Record<string, boolean> = {};
       for (const t of ANNOTATION_TOOLS) {
         if (t.id === "multiline") continue;
-        activeTypes[t.id] = editor.isActive(ANNOTATION_MARK_NAME, { annotation: t.id });
+        activeTypes[t.id] = editor.isActive(ANNOTATION_MARK_NAME, {
+          annotation: t.id,
+        });
       }
-      const multilineActive = !!editor.isActive(ANNOTATION_MARK_NAME, { multiline: true });
-      const annoAttrs = (editor.getAttributes(ANNOTATION_MARK_NAME) as Record<string, unknown>) ?? null;
+      const multilineActive = !!editor.isActive(ANNOTATION_MARK_NAME, {
+        multiline: true,
+      });
+      const annoAttrs =
+        (editor.getAttributes(ANNOTATION_MARK_NAME) as Record<
+          string,
+          unknown
+        >) ?? null;
       return { activeTypes, multilineActive, crossLine, annoAttrs };
     },
   });
@@ -153,27 +172,54 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
   };
 
   // 浮动工具栏分页
-  const toolsPerPage = Math.max(1, Math.floor((typeof window !== "undefined" ? window.innerWidth : 600) / 52));
+  const toolsPerPage = Math.max(
+    1,
+    Math.floor((typeof window !== "undefined" ? window.innerWidth : 600) / 52)
+  );
   const toolPages = Math.ceil(ANNOTATION_TOOLS.length / toolsPerPage);
-  const visibleTools = ANNOTATION_TOOLS.slice(toolPage * toolsPerPage, (toolPage + 1) * toolsPerPage);
+  const visibleTools = ANNOTATION_TOOLS.slice(
+    toolPage * toolsPerPage,
+    (toolPage + 1) * toolsPerPage
+  );
 
   const applyTool = (id: AnnotationType | "multiline") => {
     if (!editor) return;
     if (id === "multiline") {
-      const attrs = editor.getAttributes(ANNOTATION_MARK_NAME) as { multiline?: boolean } | undefined;
+      const attrs = editor.getAttributes(ANNOTATION_MARK_NAME) as
+        | { multiline?: boolean }
+        | undefined;
       if (attrs && Object.keys(attrs).length > 0) {
-        editor.chain().focus().updateAttributes(ANNOTATION_MARK_NAME, { multiline: !attrs.multiline }).run();
+        editor
+          .chain()
+          .focus()
+          .updateAttributes(ANNOTATION_MARK_NAME, {
+            multiline: !attrs.multiline,
+          })
+          .run();
       }
       return;
     }
     editor.chain().focus().toggleAnnotation(id, annoColor).run();
   };
 
+  // 应用颜色: 选区已有注解 → 即时换色; 否则存为待用色
   const pickColor = (c: string) => {
     if (!editor) return;
     const applied = editor.chain().focus().setAnnotationColor(c).run();
     if (!applied) setAnnoColor(c);
-    setSwatchOpen(false);
+  };
+
+  // 打开色板: 初始值 = 选区注解色 ?? 待用色 ?? 默认
+  const toggleSwatch = () => {
+    if (!swatchOpen) {
+      const current =
+        (editor?.getAttributes(ANNOTATION_MARK_NAME) as { color?: string | null } | undefined)
+          ?.color ??
+        annoColor ??
+        DEFAULT_ANNOTATION_COLOR;
+      setPickerColor(current);
+    }
+    setSwatchOpen((v) => !v);
   };
 
   // 模板插入: 当前行空则替换, 否则新起一行
@@ -186,7 +232,11 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
     const lineEnd = $from.end();
     const lineText = state.doc.textBetween(lineStart, lineEnd);
     if (lineText.trim() === "") {
-      editor.chain().focus().insertContentAt({ from: lineStart, to: lineEnd }, node).run();
+      editor
+        .chain()
+        .focus()
+        .insertContentAt({ from: lineStart, to: lineEnd }, node)
+        .run();
     } else {
       editor.chain().focus().insertContentAt(lineEnd, node).run();
     }
@@ -196,12 +246,15 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
     if (!editor || !file.type.startsWith("image/")) return;
     setUploading(true);
     try {
-      const dims = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
-      });
+      const dims = await new Promise<{ width: number; height: number }>(
+        (resolve, reject) => {
+          const img = new Image();
+          img.onload = () =>
+            resolve({ width: img.naturalWidth, height: img.naturalHeight });
+          img.onerror = reject;
+          img.src = URL.createObjectURL(file);
+        }
+      );
       const form = new FormData();
       form.append("file", file);
       form.append("boardId", board.id);
@@ -214,8 +267,13 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         data?: { image?: { url: string } };
         error?: { message?: string };
       };
-      if (!res.ok || !body.data?.image) throw new Error(body.error?.message ?? "上传失败");
-      editor.chain().focus().insertContent({ type: "image", attrs: { src: body.data.image.url } }).run();
+      if (!res.ok || !body.data?.image)
+        throw new Error(body.error?.message ?? "上传失败");
+      editor
+        .chain()
+        .focus()
+        .insertContent({ type: "image", attrs: { src: body.data.image.url } })
+        .run();
     } catch (err) {
       alert(err instanceof Error ? err.message : "上传失败");
     } finally {
@@ -262,7 +320,12 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         fn: () => {
           const url = window.prompt("链接地址 (留空取消):", "https://");
           if (url) {
-            editor?.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+            editor
+              ?.chain()
+              .focus()
+              .extendMarkRange("link")
+              .setLink({ href: url })
+              .run();
           }
         },
       },
@@ -273,7 +336,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         fn: () => fileRef.current?.click(),
       },
     ],
-    [editor],
+    [editor]
   );
 
   return (
@@ -284,7 +347,9 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         </Link>
         <h1 className="text-lg truncate">{board.name}</h1>
         <span
-          className={`ml-auto text-sm ${syncState === "saved" ? "text-green-600" : "text-warm/50"}`}
+          className={`ml-auto text-sm ${
+            syncState === "saved" ? "text-green-600" : "text-warm/50"
+          }`}
         >
           {syncState === "saved" ? "已保存" : "保存中…"}
         </span>
@@ -294,21 +359,40 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
       <section className="px-4 pt-3 flex flex-wrap items-center gap-2">
         <TemplateGroup label="心情">
           {MOOD_TEMPLATES.map((t) => (
-            <TemplateButton key={t.key} label={t.label} disabled={!isEditor} onClick={() => insertTemplate(t.template)} />
+            <TemplateButton
+              key={t.key}
+              label={t.label}
+              disabled={!isEditor}
+              onClick={() => insertTemplate(t.template)}
+            />
           ))}
         </TemplateGroup>
         <TemplateGroup label="天气">
           {WEATHER_TEMPLATES.map((t) => (
-            <TemplateButton key={t.key} label={t.label} disabled={!isEditor} onClick={() => insertTemplate(t.template)} />
+            <TemplateButton
+              key={t.key}
+              label={t.label}
+              disabled={!isEditor}
+              onClick={() => insertTemplate(t.template)}
+            />
           ))}
         </TemplateGroup>
         <TemplateGroup label="疲惫">
           {FATIGUE_TEMPLATES.map((t) => (
-            <TemplateButton key={t.key} label={t.label} disabled={!isEditor} onClick={() => insertTemplate(t.template)} />
+            <TemplateButton
+              key={t.key}
+              label={t.label}
+              disabled={!isEditor}
+              onClick={() => insertTemplate(t.template)}
+            />
           ))}
         </TemplateGroup>
         <TemplateGroup label="进食">
-          <TemplateButton label={DIET_TEMPLATE.label} disabled={!isEditor} onClick={() => insertTemplate(DIET_TEMPLATE.template)} />
+          <TemplateButton
+            label={DIET_TEMPLATE.label}
+            disabled={!isEditor}
+            onClick={() => insertTemplate(DIET_TEMPLATE.template)}
+          />
         </TemplateGroup>
         <div className="flex items-center gap-1 ml-auto">
           {formatTools.map((t) => (
@@ -328,7 +412,9 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
       </section>
 
       {!isEditor && (
-        <p className="px-4 pt-2 text-sm text-warm/50">你是观看者, 无法编辑内容。</p>
+        <p className="px-4 pt-2 text-sm text-warm/50">
+          你是观看者, 无法编辑内容。
+        </p>
       )}
 
       {/* 编辑器 */}
@@ -336,7 +422,10 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         <div className="max-w-2xl mx-auto bg-white/60 rounded-2xl p-5 min-h-full">
           {editor && (
             <div ref={containerRef} className="relative">
-              <EditorContent editor={editor} className="tiptap text-base leading-relaxed font-sans" />
+              <EditorContent
+                editor={editor}
+                className="tiptap text-base leading-relaxed font-sans"
+              />
               <svg
                 ref={overlayRef}
                 className="absolute inset-0 pointer-events-none"
@@ -346,7 +435,9 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
             </div>
           )}
           {!editor && <div className="text-warm/40 text-sm">加载编辑器…</div>}
-          {uploading && <p className="mt-2 text-sm text-warm/50">图片上传中…</p>}
+          {uploading && (
+            <p className="mt-2 text-sm text-warm/50">图片上传中…</p>
+          )}
         </div>
       </main>
 
@@ -367,12 +458,13 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         <BubbleMenu
           editor={editor}
           shouldShow={({ editor }) => !editor.state.selection.empty}
+          className="z-50"
         >
           <div className="flex items-center gap-0.5 rounded-xl bg-warm text-white shadow-xl px-1.5 py-1">
             {/* 颜色选择器 */}
             <div className="relative">
               <button
-                onClick={() => setSwatchOpen((v) => !v)}
+                onClick={toggleSwatch}
                 className="w-9 h-8 rounded-lg flex items-center justify-center hover:bg-white/15"
                 title="注解颜色"
               >
@@ -382,22 +474,20 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
                 />
               </button>
               {swatchOpen && (
-                <div className="absolute bottom-9 left-0 z-10 grid grid-cols-4 gap-1.5 rounded-xl bg-warm p-2 shadow-xl">
-                  {ANNOTATION_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => pickColor(c)}
-                      className="w-6 h-6 rounded-full hover:scale-110 transition-transform"
-                      style={{ backgroundColor: c }}
-                      title={c}
-                    />
-                  ))}
+                <div className="absolute bottom-9 left-0 z-10 rounded-xl bg-warm p-2 shadow-xl">
+                  <HexColorPicker
+                    color={pickerColor}
+                    onChange={setPickerColor}
+                    onMouseUp={() => pickColor(pickerColor)}
+                    onTouchEnd={() => pickColor(pickerColor)}
+                  />
                 </div>
               )}
             </div>
 
             {visibleTools.map((t) => {
-              const active = t.id === "multiline" ? multilineActive : activeTypes[t.id];
+              const active =
+                t.id === "multiline" ? multilineActive : activeTypes[t.id];
               return (
                 <button
                   key={t.id}
@@ -408,7 +498,10 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
                     active ? "bg-blue-500" : "hover:bg-white/15"
                   }`}
                 >
-                  <AnnotationIcon type={t.id} color={active ? "#ffffff" : undefined} />
+                  <AnnotationIcon
+                    type={t.id}
+                    color={active ? "#ffffff" : undefined}
+                  />
                 </button>
               );
             })}
@@ -428,7 +521,13 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
   );
 }
 
-function TemplateGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function TemplateGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex items-center gap-1 rounded-xl bg-white/70 px-2 py-1 shadow-sm">
       <span className="text-xs text-warm/50 mr-1">{label}</span>

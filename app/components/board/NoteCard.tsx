@@ -91,7 +91,7 @@ export const NoteCard = memo(function NoteCard({
       }
       updateDragNote(ev.clientX, ev.clientY);
     };
-    const onUp = (ev: PointerEvent) => {
+    const onUp = (_ev: PointerEvent) => {
       if (dragging) {
         const moved = endDragNote();
         if (moved) onMoveCommit(note.id, moved.previewX, moved.previewY);

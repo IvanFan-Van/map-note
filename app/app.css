@@ -217,4 +217,21 @@
   .tiptap .ProseMirror .ProseMirror-selectednode {
     outline: 2px solid #3b82f6;
   }
+
+  /* 颜色选择器 (react-colorful): 缩小尺寸, 适配工具栏弹层 */
+  .react-colorful {
+    width: 170px;
+    height: 170px;
+  }
+
+  .react-colorful .react-colorful__saturation {
+    border-radius: 6px;
+  }
+
+  @media (max-width: 480px) {
+    .react-colorful {
+      width: 150px;
+      height: 150px;
+    }
+  }
 }

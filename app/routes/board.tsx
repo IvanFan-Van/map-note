@@ -86,7 +86,6 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const setViewport = useBoardStore((s) => s.setViewport);
   const zoomAt = useBoardStore((s) => s.zoomAt);
   const panBy = useBoardStore((s) => s.panBy);
-  const dragNote = useBoardStore((s) => s.dragNote);
   const applyPatch = useBoardStore((s) => s.applyPatch);
   const setMembers = useBoardStore((s) => s.setMembers);
 

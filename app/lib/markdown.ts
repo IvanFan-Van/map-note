@@ -178,7 +178,7 @@ export function parseInline(src: string): InlineToken[] {
     // 链接 / 图片: [text](url) / ![alt](url)
     if (open === "[" || open === "![") {
       const rest = src.slice(idx);
-      const link = rest.match(/^(\!?)\[([^\]]*)\]\(([^)\s]+)\)/);
+      const link = rest.match(/^(!?)\[([^\]]*)\]\(([^)\s]+)\)/);
       if (link) {
         const isImage = link[1] === "!";
         if (isImage) {
