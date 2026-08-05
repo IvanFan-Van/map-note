@@ -2,6 +2,17 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-05 — ConfirmDialog 通用确认组件 + 新建便笺立即显示修复
+
+- **新建 `app/components/ui/ConfirmDialog.tsx`:** 通用确认弹窗 (fixed 底部居中浮层, 非阻塞替代 `window.confirm`; `danger` 变体红色确认按钮用于删除等危险操作); 抽离自新建便笺弹层 UI
+- **Bug 修复 — 新建便笺确认后不立即显示:** `confirmCreate` 原本丢弃响应、完全依赖 Pusher 广播回环; 广播是 fire-and-forget, Workers 在 action 返回后会终止未完成异步 fetch → 广播常丢失 → 便笺不显示 (重进 loader 拉取才看到)。修复: 客户端改用**响应数据直插** `upsertNote(r.note)`; 服务端 `broadcastPatch` 返回 Promise, 4 处调用点 (api/notes 创建、api/note PATCH/DELETE、api/note-position) 用 `ctx.waitUntil` 保持存活
+- **三处接入 ConfirmDialog:**
+  - `board.tsx` 新建便笺: 内联弹层 → `<ConfirmDialog confirmLabel="创建">`
+  - 删除便笺: `NoteCard` 删除按钮改为 `onRequestDelete` 回调 (world 层内弹窗会被 transform 缩放, 必须页面级渲染); `board.tsx` 加 `deleteDraft` state + `<ConfirmDialog danger>` (确认 → 乐观移除 + DELETE + 失败回滚, 逻辑自 NoteCard 移入)
+  - `home.tsx` 删除背景板: `window.confirm` → `deleteBoardDraft` + `<ConfirmDialog danger>`
+- **验证:** lint + typecheck 全绿; Playwright 实测 — 新建便笺确认后立即显示 (3→4, 无需刷新), 删除弹窗红色确认按钮 (danger) 生效 (4→3)
+- **最终结果:** 统一确认弹窗 UI, 新建便笺即时可见。
+
 ## 2026-08-05 — 修复: 双击确认弹窗后无法拖动平移 (手势状态机残留)
 
 - **修改文件:** `app/routes/board.tsx`
