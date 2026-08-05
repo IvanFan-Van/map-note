@@ -28,6 +28,8 @@ export interface Note {
   posY: number;
   zIndex: number;
   width: number;
+  // 元属性 (Obsidian 式): 动态添加, 只有用户添加才显示
+  meta: Record<string, string>;
   mood: string | null;
   weather: string | null;
   fatigue: number | null;

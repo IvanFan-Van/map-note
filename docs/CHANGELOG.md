@@ -2,6 +2,17 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-05 — 左下角操作提示 + Obsidian 式元属性系统
+
+- **背景板左下角操作提示** (board.tsx): 常驻显示 `Ctrl+滚轮 缩放` / `拖拽 平移` / `双击 新建便笺` (kbd 样式条目) + 缩放百分比; ✕ 收起并写入 `localStorage("board:hint:hidden")`, 刷新后保持
+- **元属性系统 (Obsidian 式 properties), 取代旧文本模板按钮:**
+  - 数据层: 迁移 `0003_add_note_meta.sql` 加 `meta TEXT` (JSON 对象) 列; `Note.meta: Record<string,string>`; db.ts `noteFromRow` 解析 JSON (损坏回退 `{}`), `updateNote` 支持 meta (JSON.stringify 落库); api/note.tsx PATCH 校验 (对象、键 ≤16 字符、值 ≤50 字符、≤8 个属性、空键/空值过滤) + 加入 broadcastPatch 实时广播; 旧 mood/weather/fatigue/diet 列保留不动
+  - `app/lib/meta.ts` (新): 预设属性 心情/天气 (select 选项) + 疲惫 (number 1-10) + 进食 (text 自由输入); `metaDisplay` 显示映射 (select→选项 label, number→`n/10`, 未知键回退原值); 支持用户自定义任意属性键
+  - 编辑器 note.tsx: 移除模板常量/insertTemplate/TemplateGroup/TemplateButton; 顶部属性栏 — 已添加属性 chip (`icon 键: 值 ✕`), 点击值就地展开编辑器 (select/number 按钮组、text 输入框), `+ 属性` 面板 (预设 4 项 + 自定义属性名输入, Enter 添加), 空值占位未提交自动丢弃, 修改即时 PATCH (低频无防抖); 观看者只读
+  - 便笺卡片 NoteCard.tsx: 顶部元属性徽章行 (`icon 值` 圆角细边框, 无属性不渲染), 随 Pusher patch 实时刷新
+- **验证:** lint + typecheck 全绿; API 冒烟 — PATCH meta 200 落库, 空值/空键过滤、数组 400、超长值 400、全量替换删除属性均符合预期; 编辑器页/背景板页 SSR 200
+- **注意:** 生产 D1 需在下次部署时由 CI preCommands 自动应用迁移 0003
+
 ## 2026-08-05 — Cloudflare Workers CI/CD 上线 + 生产部署
 
 - **CI/CD 落地:**

@@ -16,6 +16,7 @@ export async function action({ request, context, params }: Route.ActionArgs) {
   if (request.method === "PATCH") {
     const body = (await request.json().catch(() => ({}))) as {
       content?: unknown;
+      meta?: unknown;
       mood?: unknown;
       weather?: unknown;
       fatigue?: unknown;
@@ -23,6 +24,32 @@ export async function action({ request, context, params }: Route.ActionArgs) {
     };
     const changes: Parameters<typeof updateNote>[2] = {};
     if (typeof body.content === "string") changes.content = body.content;
+    if (body.meta !== undefined) {
+      // 元属性 (Obsidian 式): JSON 对象; 空键/空值忽略 (等价删除), 限制数量与长度
+      if (
+        body.meta === null ||
+        typeof body.meta !== "object" ||
+        Array.isArray(body.meta)
+      ) {
+        return apiError(400, "INVALID_META", "元属性格式不正确");
+      }
+      const meta: Record<string, string> = {};
+      for (const [k, v] of Object.entries(body.meta as Record<string, unknown>)) {
+        const key = k.trim();
+        if (key === "" || key.length > 16) continue;
+        if (typeof v !== "string") continue;
+        const val = v.trim();
+        if (val === "") continue;
+        if (val.length > 50) {
+          return apiError(400, "INVALID_META", `属性 "${key}" 的值过长`);
+        }
+        meta[key] = val;
+      }
+      if (Object.keys(meta).length > 8) {
+        return apiError(400, "INVALID_META", "元属性数量不能超过 8 个");
+      }
+      changes.meta = meta;
+    }
     if (body.mood === null || typeof body.mood === "string") changes.mood = body.mood as string | null;
     if (body.weather === null || typeof body.weather === "string")
       changes.weather = body.weather as string | null;
@@ -40,6 +67,7 @@ export async function action({ request, context, params }: Route.ActionArgs) {
         id: updated.id,
         changes: {
           content: updated.content,
+          meta: updated.meta,
           mood: updated.mood,
           weather: updated.weather,
           fatigue: updated.fatigue,

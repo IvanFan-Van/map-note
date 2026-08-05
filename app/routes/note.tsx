@@ -15,6 +15,7 @@ import {
   ANNOTATION_MARK_NAME,
 } from "~/lib/tiptap";
 import type { AnnotationType } from "~/lib/markdown";
+import { META_ATTRS, metaAttrOf, metaDisplay, type MetaAttr } from "~/lib/meta";
 import { getSessionUser } from "~/server/auth";
 import { getBoardDetail, getNote } from "~/server/db";
 import type { Route } from "./+types/note";
@@ -37,32 +38,6 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   }
   return { note, board, isEditor: board.role === "editor" };
 }
-
-// ---------- 模板 (心情/天气/疲惫/进食) ----------
-
-const MOOD_TEMPLATES = [
-  { key: "happy", label: "😊 开心", template: "**心情** 😊 开心" },
-  { key: "neutral", label: "😐 一般", template: "**心情** 😐 一般" },
-  { key: "sad", label: "😔 低落", template: "**心情** 😔 低落" },
-  { key: "angry", label: "😡 生气", template: "**心情** 😡 生气" },
-  { key: "sleepy", label: "😴 困倦", template: "**心情** 😴 困倦" },
-];
-
-const WEATHER_TEMPLATES = [
-  { key: "sunny", label: "☀️ 晴", template: "**天气** ☀️ 晴" },
-  { key: "cloudy", label: "🌤 多云", template: "**天气** 🌤 多云" },
-  { key: "rainy", label: "🌧 雨", template: "**天气** 🌧 雨" },
-  { key: "snowy", label: "🌨 雪", template: "**天气** 🌨 雪" },
-  { key: "stormy", label: "⛈ 雷暴", template: "**天气** ⛈ 雷暴" },
-];
-
-const FATIGUE_TEMPLATES = [1, 3, 5, 7, 9].map((n) => ({
-  key: String(n),
-  label: `⚡${n}`,
-  template: `**疲惫** ⚡ ${n}/10`,
-}));
-
-const DIET_TEMPLATE = { key: "diet", label: "🍽 进食", template: "**进食** 🍽 " };
 
 // ---------- 注解工具 ----------
 
@@ -112,6 +87,87 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, []);
+
+  // ---------- 元属性 (Obsidian 式, 动态添加) ----------
+  const [meta, setMeta] = useState<Record<string, string>>(initialNote.meta);
+  // 当前正在编辑值的属性键 (null = 无); 新添加未选值的属性以空值占位
+  const [editingMetaKey, setEditingMetaKey] = useState<string | null>(null);
+  const [metaAddOpen, setMetaAddOpen] = useState(false);
+  const [customKey, setCustomKey] = useState("");
+
+  // 元属性修改低频, 即时保存 (无防抖); 空值占位会在服务端被忽略
+  const saveMeta = useCallback(
+    (next: Record<string, string>) => {
+      setSyncState("saving");
+      void jsonApi(`/api/notes/${initialNote.id}`, "PATCH", { meta: next })
+        .then(() => setSyncState("saved"))
+        .catch(() => setSyncState("error"));
+    },
+    [initialNote.id]
+  );
+
+  const applyMeta = useCallback(
+    (key: string, value: string) => {
+      setMeta((prev) => {
+        const next = { ...prev };
+        // 丢弃未提交的空值占位
+        for (const [k, v] of Object.entries(next)) {
+          if (v === "") delete next[k];
+        }
+        next[key] = value;
+        saveMeta(next);
+        return next;
+      });
+      setEditingMetaKey(null);
+    },
+    [saveMeta]
+  );
+
+  const removeMeta = useCallback(
+    (key: string) => {
+      setMeta((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        for (const [k, v] of Object.entries(next)) {
+          if (v === "") delete next[k];
+        }
+        saveMeta(next);
+        return next;
+      });
+      setEditingMetaKey(null);
+    },
+    [saveMeta]
+  );
+
+  // 取消未提交的新属性 (空值占位) 或放弃修改
+  const cancelPendingMeta = useCallback(() => {
+    setEditingMetaKey(null);
+    setMeta((prev) => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(next)) {
+        if (v === "") delete next[k];
+      }
+      return next;
+    });
+  }, []);
+
+  const startAddMeta = useCallback(
+    (attr: MetaAttr) => {
+      setMeta((prev) => ({ ...prev, [attr.key]: "" }));
+      setEditingMetaKey(attr.key);
+      setMetaAddOpen(false);
+    },
+    []
+  );
+
+  const startAddCustom = useCallback(() => {
+    const key = customKey.trim();
+    if (!key || key.length > 16 || key in meta) return;
+    setMeta((prev) => ({ ...prev, [key]: "" }));
+    setCustomKey("");
+    setEditingMetaKey(key);
+    setMetaAddOpen(false);
+  }, [customKey, meta]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -220,26 +276,6 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
       setPickerColor(current);
     }
     setSwatchOpen((v) => !v);
-  };
-
-  // 模板插入: 当前行空则替换, 否则新起一行
-  const insertTemplate = (template: string) => {
-    if (!editor) return;
-    const node = markdownToJSON(template);
-    const { state } = editor;
-    const $from = state.doc.resolve(state.selection.from);
-    const lineStart = $from.start();
-    const lineEnd = $from.end();
-    const lineText = state.doc.textBetween(lineStart, lineEnd);
-    if (lineText.trim() === "") {
-      editor
-        .chain()
-        .focus()
-        .insertContentAt({ from: lineStart, to: lineEnd }, node)
-        .run();
-    } else {
-      editor.chain().focus().insertContentAt(lineEnd, node).run();
-    }
   };
 
   const uploadImage = async (file: File) => {
@@ -359,45 +395,104 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         </span>
       </header>
 
-      {/* 快捷插入 (模板) + 格式工具栏 */}
+      {/* 元属性 (Obsidian 式, 动态添加) + 格式工具栏 */}
       <section className="px-4 pt-3 flex flex-wrap items-center gap-2">
-        <TemplateGroup label="心情">
-          {MOOD_TEMPLATES.map((t) => (
-            <TemplateButton
-              key={t.key}
-              label={t.label}
-              disabled={!isEditor}
-              onClick={() => insertTemplate(t.template)}
+        {Object.entries(meta).map(([key, value]) => {
+          const attr = metaAttrOf(key);
+          const editing = editingMetaKey === key;
+          return (
+            <div
+              key={key}
+              className="flex items-center gap-1.5 rounded-xl bg-white/70 px-2.5 py-1 shadow-sm"
+            >
+              <span className="text-sm whitespace-nowrap">
+                {attr ? attr.icon : "🏷"} {attr ? attr.label : key}
+              </span>
+              <span className="text-warm/30">:</span>
+              {editing ? (
+                <MetaValueEditor
+                  attr={
+                    attr ?? {
+                      key,
+                      label: key,
+                      icon: "🏷",
+                      type: "text",
+                      placeholder: "输入内容…",
+                    }
+                  }
+                  value={value}
+                  onPick={(v) => applyMeta(key, v)}
+                  onCancel={cancelPendingMeta}
+                />
+              ) : (
+                <>
+                  <button
+                    disabled={!isEditor}
+                    onClick={() => isEditor && setEditingMetaKey(key)}
+                    className="text-sm max-w-32 truncate hover:text-blue-600 disabled:cursor-default"
+                    title={isEditor ? "点击修改" : undefined}
+                  >
+                    {metaDisplay(key, value)}
+                  </button>
+                  {isEditor && (
+                    <button
+                      onClick={() => removeMeta(key)}
+                      className="text-xs text-warm/40 hover:text-red-500"
+                      title="删除属性"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+
+        {isEditor && !metaAddOpen && (
+          <button
+            onClick={() => setMetaAddOpen(true)}
+            className="rounded-xl bg-white/70 px-2.5 py-1 text-sm shadow-sm hover:bg-white transition-colors"
+          >
+            + 属性
+          </button>
+        )}
+
+        {isEditor && metaAddOpen && (
+          <div className="flex items-center gap-1 rounded-xl bg-white/70 px-2 py-1 shadow-sm">
+            {META_ATTRS.filter((a) => !(a.key in meta)).map((a) => (
+              <button
+                key={a.key}
+                onClick={() => startAddMeta(a)}
+                className="rounded-lg bg-board/60 px-2 py-1 text-sm hover:bg-board transition-colors"
+              >
+                {a.icon} {a.label}
+              </button>
+            ))}
+            {META_ATTRS.every((a) => a.key in meta) && (
+              <span className="text-xs text-warm/50 px-1">预设属性已全部添加</span>
+            )}
+            <input
+              value={customKey}
+              onChange={(e) => setCustomKey(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") startAddCustom();
+                if (e.key === "Escape") setMetaAddOpen(false);
+              }}
+              maxLength={16}
+              placeholder="自定义属性名"
+              className="w-28 rounded-lg bg-board/60 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-300"
             />
-          ))}
-        </TemplateGroup>
-        <TemplateGroup label="天气">
-          {WEATHER_TEMPLATES.map((t) => (
-            <TemplateButton
-              key={t.key}
-              label={t.label}
-              disabled={!isEditor}
-              onClick={() => insertTemplate(t.template)}
-            />
-          ))}
-        </TemplateGroup>
-        <TemplateGroup label="疲惫">
-          {FATIGUE_TEMPLATES.map((t) => (
-            <TemplateButton
-              key={t.key}
-              label={t.label}
-              disabled={!isEditor}
-              onClick={() => insertTemplate(t.template)}
-            />
-          ))}
-        </TemplateGroup>
-        <TemplateGroup label="进食">
-          <TemplateButton
-            label={DIET_TEMPLATE.label}
-            disabled={!isEditor}
-            onClick={() => insertTemplate(DIET_TEMPLATE.template)}
-          />
-        </TemplateGroup>
+            <button
+              onClick={() => setMetaAddOpen(false)}
+              className="text-xs text-warm/40 hover:text-warm/70 px-0.5"
+              title="关闭"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center gap-1 ml-auto">
           {formatTools.map((t) => (
             <button
@@ -533,37 +628,68 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
   );
 }
 
-function TemplateGroup({
-  label,
-  children,
+function MetaValueEditor({
+  attr,
+  value,
+  onPick,
+  onCancel,
 }: {
-  label: string;
-  children: React.ReactNode;
+  attr: MetaAttr;
+  value: string;
+  onPick: (v: string) => void;
+  onCancel: () => void;
 }) {
+  if (attr.type === "select") {
+    return (
+      <span className="flex items-center gap-0.5">
+        {attr.options!.map((o) => (
+          <button
+            key={o.value}
+            onClick={() => onPick(o.value)}
+            className={`rounded-lg px-1.5 py-0.5 text-sm transition-colors ${
+              o.value === value
+                ? "bg-blue-500 text-white"
+                : "bg-board/60 hover:bg-board"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </span>
+    );
+  }
+  if (attr.type === "number") {
+    const max = attr.max ?? 10;
+    return (
+      <span className="flex items-center gap-0.5">
+        {Array.from({ length: max }, (_, i) => String(i + 1)).map((n) => (
+          <button
+            key={n}
+            onClick={() => onPick(n)}
+            className={`w-6 h-6 rounded-lg text-sm transition-colors ${
+              n === value
+                ? "bg-blue-500 text-white"
+                : "bg-board/60 hover:bg-board"
+            }`}
+          >
+            {n}
+          </button>
+        ))}
+      </span>
+    );
+  }
   return (
-    <div className="flex items-center gap-1 rounded-xl bg-white/70 px-2 py-1 shadow-sm">
-      <span className="text-xs text-warm/50 mr-1">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function TemplateButton({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded-lg bg-board/60 px-2 py-1 text-sm hover:bg-board disabled:opacity-40 transition-colors"
-    >
-      {label}
-    </button>
+    <input
+      autoFocus
+      defaultValue={value}
+      maxLength={50}
+      placeholder={attr.placeholder}
+      className="w-36 rounded-lg bg-board/60 px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onPick(e.currentTarget.value.trim());
+        if (e.key === "Escape") onCancel();
+      }}
+      onBlur={onCancel}
+    />
   );
 }

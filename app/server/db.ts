@@ -159,7 +159,7 @@ export async function deleteBoard(env: Env, boardId: string): Promise<void> {
 
 // ---------- 便笺 ----------
 
-const NOTE_SELECT = `id, board_id, author_id, content, pos_x, pos_y, z_index, width, mood, weather, fatigue, diet, created_at, updated_at`;
+const NOTE_SELECT = `id, board_id, author_id, content, pos_x, pos_y, z_index, width, meta, mood, weather, fatigue, diet, created_at, updated_at`;
 
 function noteFromRow(r: {
   id: string;
@@ -170,6 +170,7 @@ function noteFromRow(r: {
   pos_y: number;
   z_index: number;
   width: number;
+  meta: string;
   mood: string | null;
   weather: string | null;
   fatigue: number | null;
@@ -177,6 +178,15 @@ function noteFromRow(r: {
   created_at: number;
   updated_at: number;
 }): Note {
+  let meta: Record<string, string> = {};
+  try {
+    const parsed = JSON.parse(r.meta);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      meta = parsed as Record<string, string>;
+    }
+  } catch {
+    // 损坏的 meta JSON 回退为空对象
+  }
   return {
     id: r.id,
     boardId: r.board_id,
@@ -186,6 +196,7 @@ function noteFromRow(r: {
     posY: r.pos_y,
     zIndex: r.z_index,
     width: r.width,
+    meta,
     mood: r.mood,
     weather: r.weather,
     fatigue: r.fatigue,
@@ -250,7 +261,9 @@ export async function createNote(
 export async function updateNote(
   env: Env,
   noteId: string,
-  changes: Partial<Pick<Note, "content" | "mood" | "weather" | "fatigue" | "diet">>,
+  changes: Partial<
+    Pick<Note, "content" | "meta" | "mood" | "weather" | "fatigue" | "diet">
+  >,
 ): Promise<Note | null> {
   const ts = now();
   const sets: string[] = [];
@@ -258,7 +271,9 @@ export async function updateNote(
   for (const [key, value] of Object.entries(changes)) {
     if (value === undefined) continue;
     sets.push(`${key} = ?`);
-    binds.push(value as string | number | null);
+    binds.push(
+      key === "meta" ? JSON.stringify(value) : (value as string | number | null),
+    );
   }
   if (sets.length === 0) return getNote(env, noteId);
   sets.push("updated_at = ?");

@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Markdown } from "~/components/markdown/Markdown";
 import { extractImages } from "~/lib/markdown";
+import { metaDisplay, metaIconOf } from "~/lib/meta";
 import type { Note } from "~/lib/types";
 import { useBoardStore, screenToWorld } from "~/lib/store";
 
@@ -136,6 +137,19 @@ export const NoteCard = memo(function NoteCard({
               <path d="M14 11v6" />
             </svg>
           </button>
+        )}
+        {/* 元属性徽章 (Obsidian 式; 只有添加过的属性才显示) */}
+        {Object.keys(note.meta).length > 0 && (
+          <div className="flex flex-wrap gap-1 px-4 pt-3 shrink-0">
+            {Object.entries(note.meta).map(([key, value]) => (
+              <span
+                key={key}
+                className="rounded-full border border-warm/15 bg-white/60 px-1.5 py-0.5 text-[11px] text-warm/70 whitespace-nowrap"
+              >
+                {metaIconOf(key)} {metaDisplay(key, value)}
+              </span>
+            ))}
+          </div>
         )}
         {images.length > 0 && <ThumbnailStack images={images} />}
 

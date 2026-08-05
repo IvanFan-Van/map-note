@@ -65,6 +65,17 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   const [createDraft, setCreateDraft] = useState<{ wx: number; wy: number } | null>(null);
   // 删除便笺的确认草稿 (弹窗渲染在页面级, 避免 world 层 transform 缩放)
   const [deleteDraft, setDeleteDraft] = useState<Note | null>(null);
+  // 左下角操作提示 (可收起, localStorage 记忆)
+  const [hintHidden, setHintHidden] = useState(
+    () =>
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem("board:hint:hidden") === "1",
+  );
+
+  const hideHint = useCallback(() => {
+    setHintHidden(true);
+    localStorage.setItem("board:hint:hidden", "1");
+  }, []);
 
   // 平移与缩放手势状态机
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
@@ -418,9 +429,34 @@ export default function Board({ loaderData }: Route.ComponentProps) {
           ))}
         </div>
 
-        {/* 缩放指示 */}
-        <div className="absolute bottom-4 left-4 z-[200] rounded-full bg-white/80 backdrop-blur px-3 py-1 text-sm text-warm/70">
-          {Math.round(viewport.scale * 100)}%
+        {/* 左下角: 操作提示 (可收起) + 缩放指示 */}
+        <div className="absolute bottom-4 left-4 z-[200] flex items-center gap-2">
+          {!hintHidden && (
+            <div className="flex items-center gap-3 rounded-full bg-white/80 backdrop-blur px-3 py-1.5 text-sm text-warm/70">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <kbd className="rounded border border-warm/20 bg-white px-1 text-xs">Ctrl+滚轮</kbd>
+                缩放
+              </span>
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <kbd className="rounded border border-warm/20 bg-white px-1 text-xs">拖拽</kbd>
+                平移
+              </span>
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <kbd className="rounded border border-warm/20 bg-white px-1 text-xs">双击</kbd>
+                新建便笺
+              </span>
+              <button
+                onClick={hideHint}
+                className="text-warm/40 hover:text-warm/70 text-xs px-0.5"
+                title="隐藏操作提示"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          <div className="rounded-full bg-white/80 backdrop-blur px-3 py-1 text-sm text-warm/70">
+            {Math.round(viewport.scale * 100)}%
+          </div>
         </div>
       </div>
 
