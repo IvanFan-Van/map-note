@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, redirect, useNavigate } from "react-router";
 import { NoteCard } from "~/components/board/NoteCard";
+import { ConfirmDialog } from "~/components/ui/ConfirmDialog";
 import { jsonApi } from "~/lib/api";
 import { subscribeBoard } from "~/lib/pusher";
 import type { BoardMemberInfo } from "~/lib/pusher";
@@ -99,6 +100,8 @@ export default function Board({ loaderData }: Route.ComponentProps) {
   // 双击新建便笺的确认草稿 (世界坐标); 非阻塞确认, 避免 window.confirm
   // 冻结事件循环导致指针 down/up 失衡、手势状态机残留 (无法平移)
   const [createDraft, setCreateDraft] = useState<{ wx: number; wy: number } | null>(null);
+  // 删除便笺的确认草稿 (弹窗渲染在页面级, 避免 world 层 transform 缩放)
+  const [deleteDraft, setDeleteDraft] = useState<Note | null>(null);
 
   // 平移与缩放手势状态机
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
@@ -182,14 +185,35 @@ export default function Board({ loaderData }: Route.ComponentProps) {
     if (!createDraft) return;
     const draft = createDraft;
     setCreateDraft(null);
-    void jsonApi("/api/notes", "POST", { boardId: board.id, x: draft.wx, y: draft.wy }).catch(
-      () => setToast("创建便笺失败"),
-    );
+    // 用响应数据直接插入便笺 (服务端权威), 不依赖 Pusher 广播回环 —
+    // 广播是 fire-and-forget, 可能丢失导致便笺不立即显示
+    void jsonApi<{ note: Note }>("/api/notes", "POST", {
+      boardId: board.id,
+      x: draft.wx,
+      y: draft.wy,
+    })
+      .then((r) => {
+        if (r.note) upsertNote(r.note);
+      })
+      .catch(() => setToast("创建便笺失败"));
+  };
+
+  // 删除便笺: 乐观移除 + DELETE + 失败回滚
+  const confirmDeleteNote = () => {
+    if (!deleteDraft) return;
+    const note = deleteDraft;
+    setDeleteDraft(null);
+    const current = useBoardStore.getState().notes[note.id];
+    removeNote(note.id);
+    void jsonApi(`/api/notes/${note.id}`, "DELETE").catch(() => {
+      if (current) upsertNote(current);
+    });
   };
 
   // 拖拽提交: 先乐观放置本地, PUT 成功后用服务端返回值校准,
   // 不依赖 Pusher 回环 (订阅/触发失败时放置仍生效)
   const upsertNote = useBoardStore((s) => s.upsertNote);
+  const removeNote = useBoardStore((s) => s.removeNote);
   const commitMove = useCallback(
     (noteId: string, x: number, y: number) => {
       const current = useBoardStore.getState().notes[noteId];
@@ -427,6 +451,7 @@ export default function Board({ loaderData }: Route.ComponentProps) {
                 isEditor={isEditor}
                 onClick={openNote}
                 onMoveCommit={commitMove}
+                onRequestDelete={setDeleteDraft}
               />
             </div>
           ))}
@@ -444,26 +469,22 @@ export default function Board({ loaderData }: Route.ComponentProps) {
         </div>
       )}
 
-      {/* 双击新建便笺的确认弹层 (非阻塞) */}
-      {createDraft && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-[300] rounded-2xl bg-warm text-white px-5 py-3 shadow-xl flex items-center gap-4">
-          <span className="text-sm">在当前位置新建一张便笺?</span>
-          <div className="flex gap-2">
-            <button
-              onClick={confirmCreate}
-              className="rounded-lg bg-white text-warm px-3 py-1 text-sm font-semibold hover:opacity-90"
-            >
-              创建
-            </button>
-            <button
-              onClick={() => setCreateDraft(null)}
-              className="rounded-lg bg-white/15 px-3 py-1 text-sm hover:bg-white/25"
-            >
-              取消
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 确认弹窗 (非阻塞, 统一 UI) */}
+      <ConfirmDialog
+        open={!!createDraft}
+        message="在当前位置新建一张便笺?"
+        confirmLabel="创建"
+        onConfirm={confirmCreate}
+        onCancel={() => setCreateDraft(null)}
+      />
+      <ConfirmDialog
+        open={!!deleteDraft}
+        message="删除这张便笺?"
+        confirmLabel="删除"
+        danger
+        onConfirm={confirmDeleteNote}
+        onCancel={() => setDeleteDraft(null)}
+      />
     </div>
   );
 }

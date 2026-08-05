@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useFetcher, useNavigate, useRevalidator, useSearchParams } from "react-router";
+import { ConfirmDialog } from "~/components/ui/ConfirmDialog";
 import { jsonApi } from "~/lib/api";
 import type { BoardSummary, Invitation } from "~/lib/types";
 import { getSessionUser } from "~/server/auth";
@@ -124,7 +125,21 @@ function BoardsView({
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [inboxLoading, setInboxLoading] = useState(false);
   const [defaultBoardId, setDefaultBoardId] = useState<string | null>(defaultBoardIdInitial);
+  const [deleteBoardDraft, setDeleteBoardDraft] = useState<BoardSummary | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 删除背景板: 确认后删除 + 默认板置空 + 列表刷新
+  const confirmDeleteBoard = () => {
+    if (!deleteBoardDraft) return;
+    const b = deleteBoardDraft;
+    setDeleteBoardDraft(null);
+    void jsonApi<{ boardId?: string }>(`/api/boards/${b.id}`, "DELETE")
+      .then(() => {
+        if (b.id === defaultBoardId) setDefaultBoardId(null);
+        revalidator.revalidate();
+      })
+      .catch((err) => alert(err instanceof Error ? err.message : "删除失败"));
+  };
 
   const loadInbox = useCallback(async () => {
     setInboxLoading(true);
@@ -351,15 +366,7 @@ function BoardsView({
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          if (!window.confirm(`删除背景板「${b.name}」? 所有便笺与成员记录将一并删除。`)) return;
-                          void jsonApi<{ boardId?: string }>(`/api/boards/${b.id}`, "DELETE")
-                            .then(() => {
-                              if (b.id === defaultBoardId) setDefaultBoardId(null);
-                              revalidator.revalidate();
-                            })
-                            .catch((err) =>
-                              alert(err instanceof Error ? err.message : "删除失败"),
-                            );
+                          setDeleteBoardDraft(b);
                         }}
                         className="text-warm/30 hover:text-red-500 text-lg"
                         title="删除背景板"
@@ -403,6 +410,20 @@ function BoardsView({
           ))}
         </ul>
       )}
+
+      {/* 删除背景板确认弹窗 */}
+      <ConfirmDialog
+        open={!!deleteBoardDraft}
+        message={
+          deleteBoardDraft
+            ? `删除背景板「${deleteBoardDraft.name}」? 所有便笺与成员记录将一并删除。`
+            : ""
+        }
+        confirmLabel="删除"
+        danger
+        onConfirm={confirmDeleteBoard}
+        onCancel={() => setDeleteBoardDraft(null)}
+      />
     </main>
   );
 }

@@ -4,6 +4,7 @@
 > 评审方式: 全量代码阅读(前端/后端/迁移/配置/文档)+ git 历史核对 + **Playwright 浏览器实测验证(模拟真实用户操作)**
 > 评审结论: **功能骨架完整,但存在 P0 级安全漏洞、P0 级实时协作正确性缺陷、重大工程化缺失,当前状态不具备上线条件。**
 > 实测状态: 本报告中 **10 项关键缺陷已通过浏览器实测复现**(见第八章),标注 ✅ 实锤。
+> **第二轮评审(2026-08-05)**: builder 已修复 R4/D3 等多项缺陷并完成 TipTap 重构,但实时协作四大缺陷(R1/R2/R3/R5)、全部安全缺陷(S1~S4)与部署链路断裂(N4)仍未解决,详见第九章。
 
 ---
 
@@ -305,3 +306,100 @@
 ---
 
 *评审完成时间: 2026-08-04。本报告基于当前 main 分支(c079737)代码状态,第八章节为 Playwright 实测补充。*
+
+---
+
+## 九、第二轮评估(2026-08-05,builder 改进后复评)
+
+> 基线: HEAD `e46ceb6`(含 TipTap 重构、删除功能、Pusher 放置修复、eslint 等 15+ 新提交)
+> 方法: 全量重读改动代码 + typecheck/lint/build 验证 + Playwright 复测关键路径
+
+### 9.1 修复确认(✅)
+
+| 原编号 | 问题 | 现状与实测证据 |
+| --- | --- | --- |
+| R4 | 拖拽依赖 Pusher 回环 | **已修复**。`board.tsx:commitMove` 先乐观 `upsertNote` 再 PUT 校准。实测:阻断 Pusher 全部网络后拖拽,便笺停留在新位置 (650,460),服务器一致,不再弹回 |
+| D3 | 删除便笺无 UI | **已修复**。NoteCard 右上角垃圾桶按钮 + confirm + 乐观删除/失败回滚。实测删除流程完整走通 |
+| — | 删除背景板 | **新增功能**。home 卡片删除按钮 + `api/board.tsx` DELETE + `deleteBoard` batch 级联 6 张表。**但权限过宽,见 N7** |
+| — | 双击进入编辑页 | **已修复**。实测双击便笺正确进入 `/b/:boardId/n/:noteId`(曾因 preventDefault 抑制兼容鼠标事件而失效) |
+| — | 双击创建确认框 | **改进**。`window.confirm` 换为非阻塞草稿浮层(修复弹窗冻结事件循环导致手势状态机残留),实测草稿 UI 正常 |
+| — | 手势状态机 | **改进**。blur/pointercancel/visibilitychange 兜底清理 + 双击重置,平移改绝对定位计算 |
+| — | 编辑器 | **大规模重构**。TipTap 真 WYSIWYG + 自研注解标记语法(8 种 rough-notation 注解 + 颜色持久化)+ markdown 往返转换器(自述 18 用例无损) |
+| E2 | 无 lint | **部分修复**。eslint + typescript-eslint 已接入,`pnpm lint` 与 `pnpm typecheck` 均零错误通过 |
+| — | 便笺视觉 | 重设计为极简单色卡片,固定 240×320;**移除图钉/折角/连线功能**(范围变更,见 N10) |
+
+### 9.2 仍未修复(❌ 复评实测)
+
+| 原编号 | 问题 | 复评状态 |
+| --- | --- | --- |
+| R1 | 切板后 Pusher 订阅失败 | **完全复现**。`lib/pusher.ts:16` 单例固化 auth.params 未改。实测:板 A auth 200 → 板 B auth **400**,页面无"已连接" |
+| R2 | 断线重连不拉全量 | 未修。`subscribeBoard`/`board.tsx` 无 revalidate 逻辑 |
+| R3 | LWW 未实现 | 未修。`store.ts:applyPatch` 仍直接浅合并 |
+| R5 | 编辑页无实时订阅 | 未修。重构后的 `note.tsx` 仍无任何 Pusher 代码 |
+| D1 | 保存失败显示"已保存" | **复现**。`.catch(() => setSyncState("saved"))` 原样保留;实测 mock PATCH 500 后仍显示"已保存" |
+| D4 | 输入校验缺失(500) | 未修。fatigue 范围/Infinity 校验仍无 |
+| S1 | Cookie 无 Secure | 未修。`auth.ts:11`/`oauth.ts:43` 仍 `secure: false` |
+| S2 | returnTo 开放重定向 | 未修。login/callback 链路原样 |
+| S3 | 图片 MIME 魔数 | 未修。仍只信任 `file.type` |
+| A4 | SSR 首屏空白 | 未修。store 仍空初始 + useEffect 填充 |
+| 移动端 | 无创建便笺入口 | 未修。双击仍为唯一创建入口 |
+
+### 9.3 新发现问题(第二轮)
+
+#### N4 🔴 `pnpm build` 必然失败 —— 部署链路断裂(实锤)
+- `react-router build`:client 构建被 cloudflare 插件输出到 `dist/client`,而 react-router 插件硬编码读取 `build/client/.vite/manifest.json`(`@react-router/dev` 源码 `getClientBuildDirectory` → `buildDirectory/client`),SSR 阶段 ENOENT 失败
+- 实测:连跑 3 次全部失败;client 阶段还伴随 `[ERROR] The build was canceled`
+- **反证:`wrangler deploy --dry-run` 直接成功(exit 0)**——cloudflare 插件在 deploy 时自动执行构建并注入 assets
+- **结论**: `package.json` 的 `"deploy": "react-router build && wrangler deploy"` 是错误用法,`react-router build` 与插件冲突必然失败;应改为直接 `wrangler deploy`(并同步修正文档/CHANGELOG 中的部署命令)
+
+#### N5 🔴 创建便笺仍依赖 Pusher 回环(R4 只修了移动)
+- `board.tsx:confirmCreate` POST 成功后**不 upsert 本地**,新便笺出现仍等广播回环
+- 实测(板 B,订阅已失败):双击空白 → 确认创建 → **服务器便笺数 2,画布仍显示 1** —— 用户点击"创建"后无任何反馈,刷新后便笺"凭空出现",体验等同创建失败
+- 修复方向与 commitMove 一致:POST 成功后用返回的 note 直接 upsert
+
+#### N6 🟠 编辑器防抖保存并发乱序 —— 旧内容覆盖新内容
+- TipTap `onUpdate` 每次击键触发 `save`(400ms 防抖);若两次编辑间隔超过 400ms,会产生**两个并发 PATCH**,HTTP 乱序时旧请求后到,服务器最终保存旧内容,而 UI 显示"已保存"
+- 无版本号/序号/最后写入者校验;比旧版(不同字段)风险更高,因为现在同一 `content` 字段竞争
+- 修复:客户端序号(丢弃过期响应)或服务端 `updated_at` 乐观锁(if_match)
+
+#### N7 🟠 删除背景板权限过宽 —— 任意编辑者可删整板
+- `api/board.tsx:37` 只校验 `board.role !== "editor"`,**任何 editor(含被邀请的普通编辑者)可删除 owner 的背景板**(含全部便笺与成员记录),无 owner 校验
+- 规格权限矩阵中破坏性操作应仅限 owner;至少需 `board.ownerId === user.id`
+
+#### N8 🟠 TipTap 往返转换存在静默数据丢失路径
+- `tiptap.ts:itemText` 只导出 listItem 的第一段;编辑器中列表项内回车产生的多段内容,保存后**静默丢失**
+- `inlineJSON` 对 `hardBreak` 节点无处理(输出空串),shift+Enter 的硬换行丢失
+- 空 mark 文本节点可导出为 `****` 空标记,再次导入解析为纯文本 `**`(语法污染)
+- 18 个"用例无损"无自动化测试守护,重构后易回归
+
+#### N9 🟢 XSS 风险实测降级(但仍无净化层)
+- 实测写入 `[x](javascript:alert(1))`:React 19 渲染时把 href **替换为抛错脚本**,javascript: 协议已无法执行
+- 但自研解析器(`markdown.ts`/`Markdown.tsx`)已丢失 react-markdown 的 URL 净化层;`data:` 等协议仍原样渲染,且编辑器内 `setLink` 同样无协议白名单——建议保留显式净化函数
+
+### 9.4 已消失的问题(随连线功能移除)
+- 连线相关全部条目(LinkLayer 错误处理、连线 zIndex 广播缺失、连线校验等)随功能移除不再适用;`links` 表与 API 仍存在于数据库/路由层(死代码)
+
+### 9.5 评级更新
+
+| 维度 | 第一轮 | 第二轮 | 说明 |
+| --- | --- | --- | --- |
+| 安全性 | 🔴 | 🔴 | S1~S4 全部未动;N9 风险降级但净化层缺失 |
+| 实时协作 | 🔴 | 🔴 | R4 已修,但 R1/R2/R3/R5 四大核心缺陷原样残留,且 N5 创建路径仍依赖回环 |
+| 功能完整性 | 🟠 | 🟡 | 删除/编辑页/双击均修复;残留:移动端创建、重连补齐 |
+| 数据完整性 | 🟠 | 🟠 | D1/D4 未修,新增 N6 并发乱序、N8 往返丢失 |
+| 工程化 | 🔴 | 🟠 | eslint 已接入;仍零测试、`pnpm build` 断裂(N4)、Dockerfile/README 遗留 |
+
+### 9.6 第二轮优先修复清单
+
+1. **N4**: `deploy` 脚本改为 `wrangler deploy`(阻塞上线,一行修复)
+2. **R1 + N5**: 删除客户端 `auth.params.boardId`(服务端从 channel 解析)+ 创建后本地 upsert
+3. **R2**: 重连后全量拉取
+4. **S1/S2/S3**: 三项安全修复(各行小改动)
+5. **D1 + N6**: 保存状态真实化 + 请求序号防乱序
+6. **N7**: 删除板校验 owner
+7. **R3/R5/A4/移动端**: 进入稳定期后逐一补齐
+8. 为 tiptap 往返转换器补自动化测试(18 用例落地),否则重构无护栏
+
+---
+
+*第二轮评审完成时间: 2026-08-05。基线 e46ceb6;本报告第八/九章为浏览器实测补充。*

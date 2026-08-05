@@ -38,13 +38,15 @@ export async function action({ request, context, params }: Route.ActionArgs) {
     body.y,
     typeof body.zIndex === "number" ? body.zIndex : undefined,
   );
-  broadcastPatch(env, note.boardId, {
-    type: "patch",
-    entity: "note",
-    id: note.id,
-    changes: { posX: body.x, posY: body.y, updatedAt: updated!.updatedAt },
-    updatedAt: updated!.updatedAt,
-    sender: user.id,
-  });
+  context.cloudflare.ctx.waitUntil(
+    broadcastPatch(env, note.boardId, {
+      type: "patch",
+      entity: "note",
+      id: note.id,
+      changes: { posX: body.x, posY: body.y, updatedAt: updated!.updatedAt },
+      updatedAt: updated!.updatedAt,
+      sender: user.id,
+    }),
+  );
   return { ok: true, data: { note: updated } };
 }

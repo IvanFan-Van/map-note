@@ -1,5 +1,4 @@
 import { memo } from "react";
-import { jsonApi } from "~/lib/api";
 import { Markdown } from "~/components/markdown/Markdown";
 import { extractImages } from "~/lib/markdown";
 import type { Note } from "~/lib/types";
@@ -34,28 +33,23 @@ export const NoteCard = memo(function NoteCard({
   isEditor,
   onClick,
   onMoveCommit,
+  onRequestDelete,
 }: {
   note: Note;
   isEditor: boolean;
   onClick: (note: Note) => void;
   onMoveCommit: (noteId: string, x: number, y: number) => void;
+  onRequestDelete: (note: Note) => void;
 }) {
   const dragNote = useBoardStore((s) => s.dragNote);
   const startDragNote = useBoardStore((s) => s.startDragNote);
   const updateDragNote = useBoardStore((s) => s.updateDragNote);
   const endDragNote = useBoardStore((s) => s.endDragNote);
-  const removeNote = useBoardStore((s) => s.removeNote);
-  const upsertNote = useBoardStore((s) => s.upsertNote);
 
   const handleDelete = (e: React.MouseEvent) => {
+    // 确认弹窗由页面级 ConfirmDialog 渲染 (world 层内弹窗会被 transform 缩放)
     e.stopPropagation();
-    if (!window.confirm("删除这张便笺?")) return;
-    const current = useBoardStore.getState().notes[note.id];
-    removeNote(note.id);
-    void jsonApi(`/api/notes/${note.id}`, "DELETE")
-      .catch(() => {
-        if (current) upsertNote(current);
-      });
+    onRequestDelete(note);
   };
 
   const isDragging = dragNote?.noteId === note.id;

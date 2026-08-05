@@ -24,8 +24,9 @@ export async function assertEditor(env: Env, boardId: string, userId: string) {
   return role;
 }
 
-export function broadcastPatch(env: Env, boardId: string, patch: PatchEvent): void {
-  void triggerPusher(env, boardChannel(boardId), PATCH_EVENT, patch).catch((err) =>
-    console.error("[pusher] trigger failed:", err),
-  );
+/** 返回 trigger 的 Promise (调用方用 ctx.waitUntil 保持 worker 存活直到广播完成) */
+export function broadcastPatch(env: Env, boardId: string, patch: PatchEvent): Promise<void> {
+  return triggerPusher(env, boardChannel(boardId), PATCH_EVENT, patch).catch((err) => {
+    console.error("[pusher] trigger failed:", err);
+  });
 }

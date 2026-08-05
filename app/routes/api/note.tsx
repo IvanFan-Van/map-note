@@ -38,34 +38,38 @@ export async function action({ request, context, params }: Route.ActionArgs) {
         { status: 404, headers: { "Content-Type": "application/json" } },
       );
     }
-    broadcastPatch(env, note.boardId, {
-      type: "patch",
-      entity: "note",
-      id: updated.id,
-      changes: {
-        content: updated.content,
-        mood: updated.mood,
-        weather: updated.weather,
-        fatigue: updated.fatigue,
-        diet: updated.diet,
+    context.cloudflare.ctx.waitUntil(
+      broadcastPatch(env, note.boardId, {
+        type: "patch",
+        entity: "note",
+        id: updated.id,
+        changes: {
+          content: updated.content,
+          mood: updated.mood,
+          weather: updated.weather,
+          fatigue: updated.fatigue,
+          diet: updated.diet,
+          updatedAt: updated.updatedAt,
+        },
         updatedAt: updated.updatedAt,
-      },
-      updatedAt: updated.updatedAt,
-      sender: user.id,
-    });
+        sender: user.id,
+      }),
+    );
     return { ok: true, data: { note: updated } };
   }
 
   if (request.method === "DELETE") {
     await deleteNote(env, note.id);
-    broadcastPatch(env, note.boardId, {
-      type: "patch",
-      entity: "note",
-      id: note.id,
-      changes: { deleted: true },
-      updatedAt: now(),
-      sender: user.id,
-    });
+    context.cloudflare.ctx.waitUntil(
+      broadcastPatch(env, note.boardId, {
+        type: "patch",
+        entity: "note",
+        id: note.id,
+        changes: { deleted: true },
+        updatedAt: now(),
+        sender: user.id,
+      }),
+    );
     return { ok: true, data: { deleted: true } };
   }
 

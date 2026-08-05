@@ -41,13 +41,16 @@ export async function action({ request, context }: Route.ActionArgs) {
     content: typeof body.content === "string" ? body.content : "",
     width: typeof body.width === "number" ? body.width : 260,
   });
-  broadcastPatch(env, boardId, {
-    type: "patch",
-    entity: "note",
-    id: note.id,
-    changes: note as unknown as Record<string, unknown>,
-    updatedAt: now(),
-    sender: user.id,
-  });
+  // waitUntil 保持 worker 存活到广播完成 (action 返回后异步 fetch 会被终止)
+  context.cloudflare.ctx.waitUntil(
+    broadcastPatch(env, boardId, {
+      type: "patch",
+      entity: "note",
+      id: note.id,
+      changes: note as unknown as Record<string, unknown>,
+      updatedAt: now(),
+      sender: user.id,
+    }),
+  );
   return { ok: true, data: { note } };
 }
