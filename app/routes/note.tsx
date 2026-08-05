@@ -475,7 +475,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
                 />
               </button>
               {swatchOpen && (
-                <div className="absolute bottom-9 left-0 z-10 rounded-xl bg-warm p-2 shadow-xl">
+                <div className="absolute bottom-9 left-0 z-10 rounded-xl bg-warm p-2 shadow-xl anno-swatch">
                   <HexColorPicker
                     color={pickerColor}
                     onChange={setPickerColor}

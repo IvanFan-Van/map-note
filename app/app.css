@@ -217,21 +217,24 @@
   .tiptap .ProseMirror .ProseMirror-selectednode {
     outline: 2px solid #3b82f6;
   }
+}
 
-  /* 颜色选择器 (react-colorful): 缩小尺寸, 适配工具栏弹层 */
-  .react-colorful {
-    width: 170px;
-    height: 170px;
-  }
+/* 颜色选择器 (react-colorful): 缩小尺寸, 适配工具栏弹层。
+   注意: 必须放在 @layer 之外 (unlayered) — react-colorful 的默认样式
+   是运行时注入到 head 的 unlayered 规则, layered 规则优先级更低会被覆盖;
+   并用后代选择器提升特异性 (官方文档 Customization 的做法)。 */
+.anno-swatch .react-colorful {
+  width: 120px;
+  height: 120px;
+}
 
-  .react-colorful .react-colorful__saturation {
-    border-radius: 6px;
-  }
+.anno-swatch .react-colorful__saturation {
+  border-radius: 6px 6px 0 0;
+}
 
-  @media (max-width: 480px) {
-    .react-colorful {
-      width: 150px;
-      height: 150px;
-    }
+@media (max-width: 480px) {
+  .anno-swatch .react-colorful {
+    width: 150px;
+    height: 150px;
   }
 }
