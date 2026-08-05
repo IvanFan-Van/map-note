@@ -2,6 +2,15 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-04 — BubbleMenu 浮层脱离 main overflow 裁切 + dist 入库修复
+
+- **修改文件:**
+  - `app/routes/note.tsx`: `<BubbleMenu appendTo={() => document.body}>` — 根因: 浮层默认 append 到 `view.dom.parentElement` (main 内滚动容器), `overflow-y-auto` 裁切了向上展开的 color picker 弹层; 挂到 body 后弹层脱离裁切, 不被任何元素遮挡
+  - `eslint.config.js`: ignores 补 `dist`
+  - `.gitignore`: 补 `dist/`, 移除误入库的构建产物
+- **验证:** `pnpm run lint` + `pnpm run typecheck` 全绿
+- **最终结果:** color picker 弹层不再被 main 的 overflow 裁切。
+
 ## 2026-08-04 — color picker 遮挡修复 + react-colorful 样式化 + eslint
 
 - **修改文件:**
