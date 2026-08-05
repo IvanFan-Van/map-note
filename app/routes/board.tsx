@@ -432,17 +432,36 @@ export default function Board({ loaderData }: Route.ComponentProps) {
         {/* 左下角: 操作提示 (可收起) + 缩放指示 */}
         <div className="absolute bottom-4 left-4 z-[200] flex items-center gap-2">
           {!hintHidden && (
-            <div className="flex items-center gap-3 rounded-full bg-white/80 backdrop-blur px-3 py-1.5 text-sm text-warm/70">
+            /* 手写中文字体优先 (kbd 需覆盖 Tailwind preflight 的等宽字体) */
+            <div
+              className="flex items-center gap-3 rounded-full bg-white/80 backdrop-blur px-3 py-1.5 text-sm text-warm/70"
+              style={{ fontFamily: "'LeMiXiaoNaiPaoTi', var(--font-sans)" }}
+            >
               <span className="flex items-center gap-1 whitespace-nowrap">
-                <kbd className="rounded border border-warm/20 bg-white px-1 text-xs">Ctrl+滚轮</kbd>
+                <kbd
+                  className="rounded border border-warm/20 bg-white px-1 text-xs"
+                  style={{ fontFamily: "inherit" }}
+                >
+                  Ctrl+滚轮
+                </kbd>
                 缩放
               </span>
               <span className="flex items-center gap-1 whitespace-nowrap">
-                <kbd className="rounded border border-warm/20 bg-white px-1 text-xs">拖拽</kbd>
+                <kbd
+                  className="rounded border border-warm/20 bg-white px-1 text-xs"
+                  style={{ fontFamily: "inherit" }}
+                >
+                  拖拽
+                </kbd>
                 平移
               </span>
               <span className="flex items-center gap-1 whitespace-nowrap">
-                <kbd className="rounded border border-warm/20 bg-white px-1 text-xs">双击</kbd>
+                <kbd
+                  className="rounded border border-warm/20 bg-white px-1 text-xs"
+                  style={{ fontFamily: "inherit" }}
+                >
+                  双击
+                </kbd>
                 新建便笺
               </span>
               <button

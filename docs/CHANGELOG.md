@@ -2,6 +2,14 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-05 — 元属性增强 (date / 自定义值 / 键值分块) + 提示框字体
+
+- **左下角提示框字体修复** (board.tsx): 根因 — Tailwind v4 preflight 给 `kbd` 设置等宽字体 (`ui-monospace`), 且 `--font-sans` Patrick Hand 优先 (拉丁字符不走 LeMiXiaoNaiPaoTi)。修复: 提示框容器 `fontFamily: "'LeMiXiaoNaiPaoTi', var(--font-sans)"`, 3 个 kbd 加 `fontFamily: "inherit"` 覆盖; 仅提示框, 其他 UI 不变
+- **元属性 chip 键/值视觉分块** (note.tsx): 容器 `bg-board/50` 浅米分组底色 → 键块 (米色底 `bg-board/80`) 承载 icon+属性名, 值块 (白底 + 细边 `border-warm/10` + 阴影) 承载值文本, 一眼区分; `+ 属性` 按钮与添加面板底色同步
+- **自定义属性值**: select (心情/天气) 与 number (疲惫) 编辑器尾部新增"自定义…"输入框 (Enter 确认, Escape 取消), 支持任意文本值; 自定义键 (已有) + 自定义值组合完整
+- **date 元属性** (meta.ts + note.tsx): 预设 `{ key: "date", label: "日期", icon: "📅", type: "date" }`; 添加即用 `todayString()` (本地时区 YYYY-MM-DD, 非 UTC) 预填当天并保存, 打开原生 `<input type="date">` 可改 (onChange 即保存); 卡片徽章显示 `📅 2026-08-06`; 无 DB/API 改动
+- **验证:** lint + typecheck 全绿; SSR 冒烟 — board/editor 页 200, PATCH `{mood:"超级开心", date:"2026-08-06", cafe:"手冲咖啡"}` 正常落库 (自定义键/值/date 混合)
+
 ## 2026-08-05 — 左下角操作提示 + Obsidian 式元属性系统
 
 - **背景板左下角操作提示** (board.tsx): 常驻显示 `Ctrl+滚轮 缩放` / `拖拽 平移` / `双击 新建便笺` (kbd 样式条目) + 缩放百分比; ✕ 收起并写入 `localStorage("board:hint:hidden")`, 刷新后保持

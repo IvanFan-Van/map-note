@@ -15,7 +15,13 @@ import {
   ANNOTATION_MARK_NAME,
 } from "~/lib/tiptap";
 import type { AnnotationType } from "~/lib/markdown";
-import { META_ATTRS, metaAttrOf, metaDisplay, type MetaAttr } from "~/lib/meta";
+import {
+  META_ATTRS,
+  metaAttrOf,
+  metaDisplay,
+  todayString,
+  type MetaAttr,
+} from "~/lib/meta";
 import { getSessionUser } from "~/server/auth";
 import { getBoardDetail, getNote } from "~/server/db";
 import type { Route } from "./+types/note";
@@ -153,11 +159,16 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
 
   const startAddMeta = useCallback(
     (attr: MetaAttr) => {
-      setMeta((prev) => ({ ...prev, [attr.key]: "" }));
+      // date 属性默认当天日期, 添加即保存; 其余类型以空值占位等用户选值
+      setMeta((prev) => {
+        const next = { ...prev, [attr.key]: attr.type === "date" ? todayString() : "" };
+        if (attr.type === "date") saveMeta(next);
+        return next;
+      });
       setEditingMetaKey(attr.key);
       setMetaAddOpen(false);
     },
-    []
+    [saveMeta]
   );
 
   const startAddCustom = useCallback(() => {
@@ -403,12 +414,12 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
           return (
             <div
               key={key}
-              className="flex items-center gap-1.5 rounded-xl bg-white/70 px-2.5 py-1 shadow-sm"
+              className="flex items-center gap-1 rounded-xl bg-board/50 px-1.5 py-1 shadow-sm"
             >
-              <span className="text-sm whitespace-nowrap">
+              {/* 键块: 米色底 */}
+              <span className="flex items-center gap-1 rounded-md bg-board/80 px-1.5 py-0.5 text-sm whitespace-nowrap">
                 {attr ? attr.icon : "🏷"} {attr ? attr.label : key}
               </span>
-              <span className="text-warm/30">:</span>
               {editing ? (
                 <MetaValueEditor
                   attr={
@@ -426,10 +437,11 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
                 />
               ) : (
                 <>
+                  {/* 值块: 白底 + 细边 */}
                   <button
                     disabled={!isEditor}
                     onClick={() => isEditor && setEditingMetaKey(key)}
-                    className="text-sm max-w-32 truncate hover:text-blue-600 disabled:cursor-default"
+                    className="rounded-md bg-white border border-warm/10 shadow-sm px-1.5 py-0.5 text-sm max-w-32 truncate hover:border-blue-300 disabled:cursor-default"
                     title={isEditor ? "点击修改" : undefined}
                   >
                     {metaDisplay(key, value)}
@@ -437,7 +449,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
                   {isEditor && (
                     <button
                       onClick={() => removeMeta(key)}
-                      className="text-xs text-warm/40 hover:text-red-500"
+                      className="text-xs text-warm/40 hover:text-red-500 px-0.5"
                       title="删除属性"
                     >
                       ✕
@@ -452,14 +464,14 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         {isEditor && !metaAddOpen && (
           <button
             onClick={() => setMetaAddOpen(true)}
-            className="rounded-xl bg-white/70 px-2.5 py-1 text-sm shadow-sm hover:bg-white transition-colors"
+            className="rounded-xl bg-board/50 px-2.5 py-1 text-sm shadow-sm hover:bg-board/80 transition-colors"
           >
             + 属性
           </button>
         )}
 
         {isEditor && metaAddOpen && (
-          <div className="flex items-center gap-1 rounded-xl bg-white/70 px-2 py-1 shadow-sm">
+          <div className="flex items-center gap-1 rounded-xl bg-board/50 px-1.5 py-1 shadow-sm">
             {META_ATTRS.filter((a) => !(a.key in meta)).map((a) => (
               <button
                 key={a.key}
@@ -639,6 +651,23 @@ function MetaValueEditor({
   onPick: (v: string) => void;
   onCancel: () => void;
 }) {
+  // 预设选项之外, 允许输入自定义值 (回车确认)
+  const customInput = (
+    <input
+      autoFocus
+      maxLength={50}
+      placeholder="自定义…"
+      className="w-20 rounded-lg bg-board/60 px-1.5 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          const v = e.currentTarget.value.trim();
+          if (v) onPick(v);
+        }
+        if (e.key === "Escape") onCancel();
+      }}
+      onBlur={onCancel}
+    />
+  );
   if (attr.type === "select") {
     return (
       <span className="flex items-center gap-0.5">
@@ -655,6 +684,7 @@ function MetaValueEditor({
             {o.label}
           </button>
         ))}
+        {customInput}
       </span>
     );
   }
@@ -675,7 +705,25 @@ function MetaValueEditor({
             {n}
           </button>
         ))}
+        {customInput}
       </span>
+    );
+  }
+  if (attr.type === "date") {
+    return (
+      <input
+        autoFocus
+        type="date"
+        defaultValue={value}
+        className="rounded-lg bg-white border border-warm/10 shadow-sm px-1.5 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onCancel();
+        }}
+        onChange={(e) => {
+          if (e.target.value) onPick(e.target.value);
+        }}
+        onBlur={onCancel}
+      />
     );
   }
   return (
@@ -684,7 +732,7 @@ function MetaValueEditor({
       defaultValue={value}
       maxLength={50}
       placeholder={attr.placeholder}
-      className="w-36 rounded-lg bg-board/60 px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+      className="w-36 rounded-lg bg-white border border-warm/10 shadow-sm px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
       onKeyDown={(e) => {
         if (e.key === "Enter") onPick(e.currentTarget.value.trim());
         if (e.key === "Escape") onCancel();

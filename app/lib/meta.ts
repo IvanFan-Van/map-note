@@ -7,7 +7,7 @@ export interface MetaAttr {
   key: string;
   label: string;
   icon: string;
-  type: "select" | "number" | "text";
+  type: "select" | "number" | "text" | "date";
   options?: { value: string; label: string }[];
   placeholder?: string;
   max?: number;
@@ -54,7 +54,22 @@ export const META_ATTRS: MetaAttr[] = [
     type: "text",
     placeholder: "今天吃了什么…",
   },
+  {
+    key: "date",
+    label: "日期",
+    icon: "📅",
+    type: "date",
+    placeholder: "YYYY-MM-DD",
+  },
 ];
+
+// 本地时区当天日期 YYYY-MM-DD (不能用 toISOString, 那是 UTC 会差一天)
+export function todayString(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
 
 export function metaAttrOf(key: string): MetaAttr | undefined {
   return META_ATTRS.find((a) => a.key === key);
