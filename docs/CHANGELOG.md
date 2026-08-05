@@ -2,6 +2,14 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-05 — 注解取消失效修复 ($from.marks() 边界交集问题)
+
+- **修改文件:** `app/components/editor/annotationMark.ts`
+- **根因:** `toggleAnnotation`/`setAnnotationColor` 用 `state.selection.$from.marks()` 检测选区已有注解; ProseMirror 的 `ResolvedPos.marks()` 在选区起点恰为 mark 起点 (两文本节点边界, textOffset === 0) 时只返回**前一个节点**的 marks — 注解 mark 只存在于 mark 起点之后的文本节点 → 检测不到 → 走 `setMark` 重复包裹而非取消。最常见场景: 选中整个注解内容后保持选区再次点击按钮
+- **修复:** 与 TipTap 内置 `isMarkActive` 一致, 改用 `state.doc.nodesBetween(from, to, …)` 遍历选区内文本节点查找 annotation mark (共享 `findAnnotationInSelection` helper); `setAnnotationColor` (色板换色) 同病一并修复
+- **验证:** `pnpm run lint` + `pnpm run typecheck` 全绿
+- **最终结果:** 再次点击同一注解按钮可正常取消, 色板换色在整段选中时也生效。
+
 ## 2026-08-04 — react-colorful 样式覆盖失效修复 (CSS 层优先级)
 
 - **根因:** react-colorful 的默认样式是**运行时 CSS-in-JS 注入** (组件 useLayoutEffect 创建 `<style>` 元素, `innerHTML` 含 `.react-colorful { width: 200px; height: 200px }`), 属于 **unlayered 规则**; 我们的覆盖写在 Tailwind v4 的 `@layer components` 内 — 按 CSS 级联, unlayered 样式优先于 layered 样式 (层优先级高于特异性), 覆盖被吞
