@@ -2,6 +2,16 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-05 — 修复: 双击确认弹窗后无法拖动平移 (手势状态机残留)
+
+- **修改文件:** `app/routes/board.tsx`
+- **根因:** `window.confirm` 同步阻塞事件循环 (浏览器 modal); modal 打开/关闭瞬间浏览器对指针事件的挂起/补发使 down/up 配对失衡, `pointersRef` 残留幽灵 pointerId; 之后单指拖动被误判为双指缩放 (`size === 2` → pinch 分支, `panRef` 置 null) — 平移失效且**不可恢复** (up 后 `size` 变 1, 但 `panRef` 仍为 null, 每次拖动都是 `size === 2`)
+- **修复:**
+  - 根治: 双击新建改用**非阻塞自定义确认弹层** (`createDraft` state + 浮层 UI, 创建/取消按钮), 不再冻结事件循环
+  - 防御: 手势状态机兜底 — 双击 (明确的手势边界) 与 window `blur`/`pointercancel`/`visibilitychange` 时 `resetGestures()` 清空全部指针状态
+- **验证:** `pnpm run lint` + `pnpm run typecheck` 全绿; Playwright 实测 — 双击→取消→拖动位移完整应用 (200px), 连续拖动无残留
+- **最终结果:** 关闭双击确认弹层后拖动平移恢复正常。
+
 ## 2026-08-05 — 注解取消失效修复 ($from.marks() 边界交集问题)
 
 - **修改文件:** `app/components/editor/annotationMark.ts`
