@@ -2,6 +2,22 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-05 — 代码质量重构 (依据 CODE_QUALITY.md 评审, P1~P4)
+
+- **背景:** 复核 CODE_QUALITY.md 评审, 对 3 处不准确判断在文档中加 `>` 批注 (react-markdown/remark-gfm 不在 dependencies 而在 vite include; screenToWorld 实际被使用 (无调用的是 worldToScreen); links 清理需连带 DROP TABLE 迁移)
+- **P1 清理死代码:**
+  - 删 `board.tsx` action 死代码 (内联 SQL 创建, 与 `/api/notes` 重复, 无调用方)
+  - store: 删只写不读的 `members`/`setMembers`; 新增 `resetBoard()` (切板清 notes/viewport/dragNote 残留); 删无调用的 `worldToScreen`; board/NoteCard 手写坐标换算改用 `screenToWorld`
+  - 迁移 `0002_drop_links.sql` (DROP TABLE links) + 删 db.ts 两处 links SQL; `moveNote` 去 zIndex 死参数
+  - 删死依赖 `clsx`/`lucide-react`; vite.config include 清理 `react-markdown`/`remark-gfm` 残留并补注释
+  - 修 Pusher 单例 boardId 固化 (auth 不带 boardId, 服务端从 channel_name 解析) — 切换背景板订阅 403 的根因
+  - 头像 `key={i}` → `key={id}`
+- **P2 样板统一:** `lib/api.ts` 新增 `apiError(status, code, message)`, 机械替换 12 个 API 文件 31 处错误响应 (3 行 → 1 行, Content-Type 头统一); user.tsx 局部 unauthorized 一并替换
+- **P3 依赖方向与重复:** `ANNOTATION_STYLE` 从展示组件移至 `lib/markdown.ts` (annotationRenderer 不再依赖组件内部常量); 合并 `seedOf` 双实现为共享函数; 新增 `lib/constants.ts` (BOARD_CHANNEL_PREFIX/PATCH_EVENT), 客户端服务端共享
+- **P4 小修:** note.tsx 保存失败新增 error 态 (红字"保存失败", 不再静默"已保存"); home.tsx loadInbox 改用 jsonApi + `LoadedUser` 类型别名; 共享 COOKIE_BASE (server/cookies.ts); wrangler compatibility_date 2026-07-01 → 2025-11-25 (消除静默回退)
+- **验证:** `pnpm run lint` + `pnpm run typecheck` 全绿; 冒烟 — 页面 200、board API 正常、创建便笺成功
+- **最终结果:** 死代码与重复样板清理完毕, 依赖方向修正, 可维护性提升。
+
 ## 2026-08-05 — ConfirmDialog 通用确认组件 + 新建便笺立即显示修复
 
 - **新建 `app/components/ui/ConfirmDialog.tsx`:** 通用确认弹窗 (fixed 底部居中浮层, 非阻塞替代 `window.confirm`; `danger` 变体红色确认按钮用于删除等危险操作); 抽离自新建便笺弹层 UI
