@@ -2,6 +2,16 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-04 — color picker 遮挡修复 + react-colorful 样式化 + eslint
+
+- **修改文件:**
+  - `app/routes/note.tsx`: BubbleMenu 加 `z-50` — 浮层默认 append 到编辑器父元素 (无 stacking context), 被 sticky header (z-20) 遮挡的根因; 移除 HexColorPicker 内联尺寸 (样式移交 CSS)
+  - `app/app.css`: `.react-colorful` 缩小为 170×170 (窄屏 ≤480px 时 150×150, responsive), 饱和度区圆角
+  - `eslint.config.js` (新建): eslint 10 + typescript-eslint 8 最小配置 (宽松规则: 允许 any/console, unused 警告); `package.json` 新增 `lint` script
+  - 修复存量 lint 问题: markdown.ts 无用转义 `\!`、NoteCard/auth.logout/board 未用变量
+- **验证:** `pnpm run lint` + `pnpm run typecheck` 全绿 (此后测试改用 lint, 不再用 playwright)
+- **最终结果:** color picker 不被 header 遮挡, 尺寸响应式, eslint 基础设施落地。
+
 ## 2026-08-04 — TipTap 真 WYSIWYG 编辑器重构 + per-annotation 颜色
 
 - **背景:** 用户要求"标记语法仅后台存在, 用户只见注解效果 + 任意选中文本即弹工具栏"。行块式 textarea 无法局部隐藏标记 (WYSIWYG 需要富文本模型) → 引入 TipTap 重写
