@@ -1,5 +1,6 @@
 import { requireUser } from "~/server/auth";
-import { authorizeChannel, boardChannel } from "~/server/pusher";
+import { authorizeChannel } from "~/server/pusher";
+import { BOARD_CHANNEL_PREFIX } from "~/lib/constants";
 import type { Route } from "./+types/pusher-auth";
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -14,14 +15,15 @@ export async function action({ request, context }: Route.ActionArgs) {
   const form = await request.formData();
   const socketId = String(form.get("socket_id") ?? "");
   const channelName = String(form.get("channel_name") ?? "");
-  const boardId = String(form.get("boardId") ?? "");
   if (!socketId || !channelName) {
     return new Response("缺少参数", { status: 400 });
   }
-  const match = channelName.match(/^presence-board-(.+)$/);
-  if (!match || match[1] !== boardId || boardChannel(boardId) !== channelName) {
+  // 背景板 ID 从频道名解析 (客户端不再传 boardId 参数; channel_name 由
+  // pusher-js 自动携带, 服务端以此为准, 校验成员关系)
+  if (!channelName.startsWith(BOARD_CHANNEL_PREFIX)) {
     return new Response("频道不合法", { status: 400 });
   }
+  const boardId = channelName.slice(BOARD_CHANNEL_PREFIX.length);
   const role = await env.DB.prepare(
     `SELECT role FROM board_members WHERE board_id = ? AND user_id = ?`,
   )
