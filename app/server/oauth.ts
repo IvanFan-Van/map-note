@@ -1,4 +1,5 @@
 import { createCookieSessionStorage } from "react-router";
+import { COOKIE_BASE } from "~/server/cookies";
 
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -36,11 +37,8 @@ function oauthStorage(env: Env) {
     cookie: {
       name: OAUTH_COOKIE,
       secrets: [env.SECRET_KEY],
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
+      ...COOKIE_BASE,
       maxAge: OAUTH_TTL_SECONDS,
-      secure: false,
     },
   });
 }

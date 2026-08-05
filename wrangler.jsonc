@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "co-note",
   "main": "./workers/app.ts",
-  "compatibility_date": "2026-07-01",
+  "compatibility_date": "2025-11-25",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./build/client" },
   "observability": { "enabled": true },

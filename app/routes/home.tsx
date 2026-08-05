@@ -105,12 +105,14 @@ function GoogleIcon() {
   );
 }
 
+type LoadedUser = NonNullable<Route.ComponentProps["loaderData"]["user"]>;
+
 function BoardsView({
   user,
   boards,
   defaultBoardId: defaultBoardIdInitial,
 }: {
-  user: NonNullable<Route.ComponentProps["loaderData"]["user"]>;
+  user: LoadedUser;
   boards: BoardSummary[];
   defaultBoardId: string | null;
 }) {
@@ -144,11 +146,10 @@ function BoardsView({
   const loadInbox = useCallback(async () => {
     setInboxLoading(true);
     try {
-      const res = await fetch("/api/invitations/inbox");
-      if (res.ok) {
-        const body = (await res.json()) as { data?: { invitations?: Invitation[] } };
-        setInvitations(body.data?.invitations ?? []);
-      }
+      const data = await jsonApi<{ invitations: Invitation[] }>("/api/invitations/inbox", "GET");
+      setInvitations(data.invitations ?? []);
+    } catch {
+      setInvitations([]);
     } finally {
       setInboxLoading(false);
     }

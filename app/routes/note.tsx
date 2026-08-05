@@ -82,7 +82,7 @@ const DEFAULT_ANNOTATION_COLOR = "#3b82f6";
 
 export default function NoteEditor({ loaderData }: Route.ComponentProps) {
   const { note: initialNote, board, isEditor } = loaderData;
-  const [syncState, setSyncState] = useState<"saved" | "saving">("saved");
+  const [syncState, setSyncState] = useState<"saved" | "saving" | "error">("saved");
   const [uploading, setUploading] = useState(false);
   // 待用注解颜色: 选择颜色但当前选区无注解时暂存, 应用注解时使用
   const [annoColor, setAnnoColor] = useState<string | null>(null);
@@ -101,7 +101,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
       saveTimer.current = setTimeout(() => {
         void jsonApi(`/api/notes/${initialNote.id}`, "PATCH", { content: md })
           .then(() => setSyncState("saved"))
-          .catch(() => setSyncState("saved"));
+          .catch(() => setSyncState("error"));
       }, 400);
     },
     [initialNote.id]
@@ -348,10 +348,14 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         <h1 className="text-lg truncate">{board.name}</h1>
         <span
           className={`ml-auto text-sm ${
-            syncState === "saved" ? "text-green-600" : "text-warm/50"
+            syncState === "saved"
+              ? "text-green-600"
+              : syncState === "error"
+                ? "text-red-500"
+                : "text-warm/50"
           }`}
         >
-          {syncState === "saved" ? "已保存" : "保存中…"}
+          {syncState === "saved" ? "已保存" : syncState === "error" ? "保存失败" : "保存中…"}
         </span>
       </header>
 

@@ -1,15 +1,9 @@
 import { createCookieSessionStorage } from "react-router";
 import type { User } from "~/lib/types";
+import { COOKIE_BASE } from "~/server/cookies";
 
 export const SESSION_COOKIE = "co_note_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
-
-const COOKIE_BASE = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  path: "/",
-  secure: false,
-};
 
 export function getSessionStorage(env: Env) {
   return createCookieSessionStorage({
