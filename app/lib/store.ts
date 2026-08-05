@@ -22,23 +22,18 @@ interface BoardStore {
   notes: Record<string, Note>;
   viewport: Viewport;
   dragNote: DragNoteState | null;
-  members: Record<string, { name: string; avatarUrl: string | null }>;
 
   setBoardData: (notes: Note[]) => void;
   upsertNote: (note: Note) => void;
   removeNote: (id: string) => void;
+  resetBoard: () => void;
   setViewport: (v: Viewport) => void;
   zoomAt: (screenX: number, screenY: number, factor: number) => void;
   panBy: (dx: number, dy: number) => void;
   startDragNote: (noteId: string, screenX: number, screenY: number, offsetX: number, offsetY: number) => void;
   updateDragNote: (screenX: number, screenY: number) => void;
   endDragNote: () => DragNoteState | null;
-  setMembers: (members: Record<string, { name: string; avatarUrl: string | null }>) => void;
   applyPatch: (patch: PatchEvent) => void;
-}
-
-export function worldToScreen(wx: number, wy: number, v: Viewport) {
-  return { sx: wx * v.scale + v.viewX, sy: wy * v.scale + v.viewY };
 }
 
 export function screenToWorld(sx: number, sy: number, v: Viewport) {
@@ -49,7 +44,6 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
   notes: {},
   viewport: { viewX: 0, viewY: 0, scale: 1 },
   dragNote: null,
-  members: {},
 
   setBoardData: (notes) => {
     const noteMap: Record<string, Note> = {};
@@ -65,6 +59,9 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
       delete notes[id];
       return { notes };
     }),
+  // 切板时清空跨板残留状态 (notes/viewport/dragNote)
+  resetBoard: () =>
+    set({ notes: {}, viewport: { viewX: 0, viewY: 0, scale: 1 }, dragNote: null }),
 
   setViewport: (viewport) => set({ viewport }),
   zoomAt: (screenX, screenY, factor) => {
@@ -116,8 +113,6 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     set({ dragNote: null });
     return d;
   },
-
-  setMembers: (members) => set({ members }),
 
   applyPatch: (patch) => {
     const s = get();

@@ -23,7 +23,6 @@ export async function action({ request, context, params }: Route.ActionArgs) {
   const body = (await request.json().catch(() => ({}))) as {
     x?: unknown;
     y?: unknown;
-    zIndex?: unknown;
   };
   if (typeof body.x !== "number" || typeof body.y !== "number") {
     return new Response(
@@ -31,13 +30,7 @@ export async function action({ request, context, params }: Route.ActionArgs) {
       { status: 400, headers: { "Content-Type": "application/json" } },
     );
   }
-  const updated = await moveNote(
-    env,
-    note.id,
-    body.x,
-    body.y,
-    typeof body.zIndex === "number" ? body.zIndex : undefined,
-  );
+  const updated = await moveNote(env, note.id, body.x, body.y);
   context.cloudflare.ctx.waitUntil(
     broadcastPatch(env, note.boardId, {
       type: "patch",

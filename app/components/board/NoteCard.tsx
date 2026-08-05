@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Markdown } from "~/components/markdown/Markdown";
 import { extractImages } from "~/lib/markdown";
 import type { Note } from "~/lib/types";
-import { useBoardStore } from "~/lib/store";
+import { useBoardStore, screenToWorld } from "~/lib/store";
 
 const NOTE_WIDTH = 240;
 const NOTE_HEIGHT = 320;
@@ -68,8 +68,7 @@ export const NoteCard = memo(function NoteCard({
     const noteEl = (e.currentTarget as HTMLElement).parentElement as HTMLElement;
     noteEl.setPointerCapture(e.pointerId);
     const vp = useBoardStore.getState().viewport;
-    const wx = (e.clientX - vp.viewX) / vp.scale;
-    const wy = (e.clientY - vp.viewY) / vp.scale;
+    const { wx, wy } = screenToWorld(e.clientX, e.clientY, vp);
     const startX = e.clientX;
     const startY = e.clientY;
     const offsetX = wx - note.posX;

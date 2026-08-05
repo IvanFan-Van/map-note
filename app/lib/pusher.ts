@@ -8,12 +8,14 @@ export interface BoardMemberInfo {
   avatarUrl: string | null;
 }
 
-export function initPusher(key: string, cluster: string, boardId: string) {
+// 注意: 模块级单例 — 订阅不同背景板时复用同一连接。
+// auth 不带 boardId 参数: 服务端从 channel_name (presence-board-<id>) 解析,
+// 固化 boardId 会导致切换背景板后 auth 参数陈旧、订阅 403。
+export function initPusher(key: string, cluster: string) {
   if (!pusher) {
     pusher = new Pusher(key, {
       cluster,
       authEndpoint: "/api/pusher/auth",
-      auth: { params: { boardId } },
     });
   }
   return pusher;
@@ -34,7 +36,7 @@ export function subscribeBoard(
   boardId: string,
   handlers: BoardChannelHandlers,
 ): () => void {
-  const p = initPusher(key, cluster, boardId);
+  const p = initPusher(key, cluster);
   const channelName = `presence-board-${boardId}`;
   const channel = p.subscribe(channelName);
 

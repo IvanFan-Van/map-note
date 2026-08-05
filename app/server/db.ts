@@ -147,7 +147,6 @@ export async function getBoardRole(
 
 export async function deleteBoard(env: Env, boardId: string): Promise<void> {
   await env.DB.batch([
-    env.DB.prepare(`DELETE FROM links WHERE board_id = ?`).bind(boardId),
     env.DB.prepare(`DELETE FROM notes WHERE board_id = ?`).bind(boardId),
     env.DB.prepare(`DELETE FROM invitations WHERE board_id = ?`).bind(boardId),
     env.DB.prepare(`DELETE FROM board_members WHERE board_id = ?`).bind(boardId),
@@ -275,24 +274,17 @@ export async function moveNote(
   noteId: string,
   x: number,
   y: number,
-  zIndex?: number,
 ): Promise<Note | null> {
   await env.DB.prepare(
-    `UPDATE notes SET pos_x = ?, pos_y = ?, ${zIndex !== undefined ? "z_index = ?," : ""} updated_at = ? WHERE id = ?`,
+    `UPDATE notes SET pos_x = ?, pos_y = ?, updated_at = ? WHERE id = ?`,
   )
-    .bind(...(zIndex !== undefined ? [x, y, zIndex, now(), noteId] : [x, y, now(), noteId]))
+    .bind(x, y, now(), noteId)
     .run();
   return getNote(env, noteId);
 }
 
 export async function deleteNote(env: Env, noteId: string): Promise<void> {
-  await env.DB.batch([
-    env.DB.prepare(`DELETE FROM links WHERE from_note_id = ? OR to_note_id = ?`).bind(
-      noteId,
-      noteId,
-    ),
-    env.DB.prepare(`DELETE FROM notes WHERE id = ?`).bind(noteId),
-  ]);
+  await env.DB.prepare(`DELETE FROM notes WHERE id = ?`).bind(noteId).run();
 }
 
 // ---------- 背景板详情 ----------

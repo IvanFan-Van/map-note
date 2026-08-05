@@ -5,7 +5,7 @@ import { ConfirmDialog } from "~/components/ui/ConfirmDialog";
 import { jsonApi } from "~/lib/api";
 import { subscribeBoard } from "~/lib/pusher";
 import type { BoardMemberInfo } from "~/lib/pusher";
-import { useBoardStore } from "~/lib/store";
+import { useBoardStore, screenToWorld } from "~/lib/store";
 import type { Note } from "~/lib/types";
 import { getSessionUser } from "~/server/auth";
 import { getBoardDetail, getUserSettings, listNotes } from "~/server/db";
@@ -39,58 +39,21 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request, context, params }: Route.ActionArgs) {
-  const env = context.cloudflare.env;
-  const user = await getSessionUser(request, env);
-  if (!user) {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "UNAUTHORIZED", message: "请先登录" } }),
-      { status: 401, headers: { "Content-Type": "application/json" } },
-    );
-  }
-  const body = (await request.json().catch(() => ({}))) as { x?: unknown; y?: unknown };
-  if (typeof body.x !== "number" || typeof body.y !== "number") {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "INVALID_INPUT", message: "缺少坐标" } }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
-  }
-  const role = await env.DB.prepare(
-    `SELECT role FROM board_members WHERE board_id = ? AND user_id = ?`,
-  )
-    .bind(params.boardId, user.id)
-    .first<{ role: string }>();
-  if (role?.role !== "editor") {
-    return new Response(
-      JSON.stringify({ ok: false, error: { code: "FORBIDDEN", message: "观看者无编辑权限" } }),
-      { status: 403, headers: { "Content-Type": "application/json" } },
-    );
-  }
-  const noteId = crypto.randomUUID();
-  await env.DB.prepare(
-    `INSERT INTO notes (id, board_id, author_id, content, pos_x, pos_y, z_index, width, created_at, updated_at)
-     VALUES (?, ?, ?, '', ?, ?, 0, 260, ?, ?)`,
-  )
-    .bind(params.boardId, user.id, noteId, body.x, body.y, Date.now(), Date.now())
-    .run();
-  return { ok: true, data: { noteId } };
-}
-
 export default function Board({ loaderData }: Route.ComponentProps) {
   const { board, notes, user, isEditor, isDefault, pusherKey, pusherCluster } = loaderData;
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const setBoardData = useBoardStore((s) => s.setBoardData);
+  const resetBoard = useBoardStore((s) => s.resetBoard);
   const notesMap = useBoardStore((s) => s.notes);
   const viewport = useBoardStore((s) => s.viewport);
   const setViewport = useBoardStore((s) => s.setViewport);
   const zoomAt = useBoardStore((s) => s.zoomAt);
   const panBy = useBoardStore((s) => s.panBy);
   const applyPatch = useBoardStore((s) => s.applyPatch);
-  const setMembers = useBoardStore((s) => s.setMembers);
 
-  const [members, setMembersLocal] = useState<Record<string, BoardMemberInfo>>({});
+  const [members, setMembers] = useState<Record<string, BoardMemberInfo>>({});
   const [connected, setConnected] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteId, setInviteId] = useState("");
@@ -130,8 +93,10 @@ export default function Board({ loaderData }: Route.ComponentProps) {
 
   // 初始化数据与实时订阅
   useEffect(() => {
+    // 同路由切换背景板时组件实例复用, 先清空跨板残留状态再载入
+    resetBoard();
     setBoardData(notes);
-  }, [setBoardData, notes]);
+  }, [resetBoard, setBoardData, notes]);
 
   useEffect(() => {
     const unsubscribe = subscribeBoard(pusherKey, pusherCluster, board.id, {
@@ -143,15 +108,13 @@ export default function Board({ loaderData }: Route.ComponentProps) {
         }
       },
       onMembers: (m) => {
-        setMembersLocal((prev) => ({ ...prev, ...m }));
-        setMembers(m);
+        setMembers((prev) => ({ ...prev, ...m }));
       },
       onMemberAdded: (id, info) => {
-        setMembersLocal((prev) => ({ ...prev, [id]: info }));
-        setMembers({ [id]: info });
+        setMembers((prev) => ({ ...prev, [id]: info }));
       },
       onMemberRemoved: (id) => {
-        setMembersLocal((prev) => {
+        setMembers((prev) => {
           const next = { ...prev };
           delete next[id];
           return next;
@@ -173,10 +136,8 @@ export default function Board({ loaderData }: Route.ComponentProps) {
       const el = e.target as HTMLElement;
       if (el.closest("[data-note]")) return;
       const vp = useBoardStore.getState().viewport;
-      setCreateDraft({
-        wx: (e.clientX - vp.viewX) / vp.scale,
-        wy: (e.clientY - vp.viewY) / vp.scale,
-      });
+      const { wx, wy } = screenToWorld(e.clientX, e.clientY, vp);
+      setCreateDraft({ wx, wy });
     },
     [isEditor, resetGestures],
   );
@@ -355,12 +316,12 @@ export default function Board({ loaderData }: Route.ComponentProps) {
           {connected ? "已连接" : "连接中"}
         </span>
         <div className="flex -space-x-2">
-          {Object.values(members)
-            .filter((m) => m.name)
-            .map((m, i) =>
+          {Object.entries(members)
+            .filter(([, m]) => m.name)
+            .map(([id, m]) =>
               m.avatarUrl ? (
                 <img
-                  key={i}
+                  key={id}
                   src={m.avatarUrl}
                   alt={m.name}
                   title={m.name}
@@ -368,7 +329,7 @@ export default function Board({ loaderData }: Route.ComponentProps) {
                 />
               ) : (
                 <span
-                  key={i}
+                  key={id}
                   title={m.name}
                   className="w-7 h-7 rounded-full border-2 border-white bg-note flex items-center justify-center text-xs"
                 >
