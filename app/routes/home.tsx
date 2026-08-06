@@ -32,12 +32,16 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (!user) {
     return { ok: false, error: "请先登录" };
   }
-  const body = (await request.json().catch(() => ({}))) as { name?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    name?: unknown;
+    type?: unknown;
+  };
   const name =
     typeof body.name === "string" && body.name.trim()
       ? body.name.trim().slice(0, 30)
       : "我的生活";
-  const board = await createBoard(env, user.id, name);
+  const type = body.type === "canvas" ? "canvas" : "sticky";
+  const board = await createBoard(env, user.id, name, type);
   return { ok: true, board };
 }
 
@@ -130,6 +134,7 @@ function BoardsView({
   const revalidator = useRevalidator();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [boardType, setBoardType] = useState<"sticky" | "canvas">("sticky");
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -196,10 +201,14 @@ function BoardsView({
 
   const create = useCallback(() => {
     if (fetcher.state !== "idle") return;
-    fetcher.submit({ name }, { method: "POST", encType: "application/json" });
+    fetcher.submit(
+      { name, type: boardType },
+      { method: "POST", encType: "application/json" }
+    );
     setCreating(false);
     setName("");
-  }, [fetcher, name]);
+    setBoardType("sticky");
+  }, [fetcher, name, boardType]);
 
   // 创建后不自动跳转, 留在首页列表 (fetcher 提交后自动 revalidate 刷新列表)
 
@@ -337,7 +346,9 @@ function BoardsView({
 
       {defaultBoardId && boards.find((b) => b.id === defaultBoardId) && (
         <Link
-          to={`/b/${defaultBoardId}`}
+          to={`${
+            boards.find((b) => b.id === defaultBoardId)!.type === "canvas" ? "/c" : "/b"
+          }/${defaultBoardId}`}
           className="mb-4 flex items-center justify-between rounded-2xl bg-warm text-white px-5 py-3 shadow-md hover:opacity-95 transition-opacity"
         >
           <span className="text-lg">
@@ -374,6 +385,24 @@ function BoardsView({
             placeholder="背景板名称 (默认: 我的生活)"
             className="flex-1 rounded-xl bg-board/60 px-4 py-2 text-lg outline-none focus:ring-2 focus:ring-blue-300"
           />
+          <div className="flex gap-1 rounded-xl bg-board/60 p-1">
+            {(
+              [
+                { v: "sticky", label: "📌 便笺板" },
+                { v: "canvas", label: "🎨 画布板" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.v}
+                onClick={() => setBoardType(t.v)}
+                className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                  boardType === t.v ? "bg-warm text-white" : "text-warm/60 hover:bg-board"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
           <button
             onClick={create}
             disabled={fetcher.state !== "idle"}
@@ -393,11 +422,16 @@ function BoardsView({
           {boards.map((b) => (
             <li key={b.id}>
               <Link
-                to={`/b/${b.id}`}
+                to={`${b.type === "canvas" ? "/c" : "/b"}/${b.id}`}
                 className="block rounded-2xl bg-note p-5 shadow-md hover:shadow-lg transition-shadow relative"
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-2xl leading-tight">{b.name}</h3>
+                  {b.type === "canvas" && (
+                    <span className="text-xs rounded-full bg-warm/10 px-2 py-0.5 text-warm/60 shrink-0 mt-1.5">
+                      画布板
+                    </span>
+                  )}
                   <div className="flex items-center gap-1 shrink-0">
                     {b.role === "editor" && (
                       <button

@@ -2,6 +2,30 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-06 — 画布解耦 + 无限画布板 (文本块/对齐/图片) + GIPHY 表情包
+
+### 阶段 1 — 画布基础设施解耦 (行为不变)
+- `app/lib/canvas.ts` (新): `Viewport`/`MIN_SCALE`/`MAX_SCALE`/`screenToWorld` 从 store.ts 迁出 + `useCanvasStore` (viewport/setViewport/zoomAt/panBy/resetViewport)
+- `app/lib/useDrag.ts` (新): 通用画布内容物拖拽 hook (阈值 6px / pointer capture / 位置计算), NoteCard 与 TextBlock 共用; NoteCard 拖拽逻辑迁入
+- `app/components/canvas/CanvasBoard.tsx` (新): 从 board.tsx 提取 — 指针状态机 (平移/双指捏合缩放)、wheel 监听、手势兜底 (blur/pointercancel/visibilitychange)、网格背景、左下角操作提示 (hintKey 可配置) + 缩放%; props: `children`/`onBlankDoubleClick(e, world)`/`onBlankClick`; board.tsx 改用后删除内联手势代码
+- `app/components/shared/BoardHeader.tsx` (新): 顶部工具栏 (返回/名称/默认星标/连接状态/成员/邀请/只读), board.tsx 改用 (canvas 板共用)
+
+### 阶段 2 — 无限画布板 (Canvas board, /c/:boardId)
+- 迁移 `0004_canvas.sql`: `boards.type` (sticky/canvas) + `blocks` 表 (text/pos/z/width/align_h/align_v)
+- 数据层: types.ts 加 `Block`/`BoardType`/`AlignH`/`AlignV`/`PatchEntity+"block"`; db.ts `createBoard(+type)` + blocks 全套 CRUD (updateBlock 做 TS键→DB列名映射 alignH→align_h); api/blocks.tsx (POST) + api/block.tsx (PATCH text/width/alignH/alignV + DELETE) + api/block-position.tsx (PUT), 全部含 broadcastPatch 实时广播; `app/lib/blockStore.ts` (新) blocks 状态 + applyPatch
+- **路由注册坑**: 项目用显式 `app/routes.ts` 配置 (非目录约定), 新路由必须手动注册 — typegen 不扫描目录导致 404 + 类型缺失
+- `app/routes/canvas.tsx`: 双击空白直接创建文本块 (无确认弹窗) 并进入编辑; 文本块单击选中 (蓝色边框 + 对齐工具栏), 双击编辑 (textarea autoFocus/blur 保存), 拖拽移动 (PUT position), 空文本提交自动删除, 粘贴图片 → R2 上传 → 光标处插入 `![](url)`; 观看者只读
+- `app/components/canvas/TextBlock.tsx`: 文本块尺寸 — min-width 240 + 内容横向拓展 (`white-space: pre` 不自动换行, Enter 才换行), min-height 一行; 对齐 — 容器 flex `justify-content`(左中右) + `align-items`(上中下), 内容不满最小尺寸时可见; 编辑态宽高随内容自适应 (textarea wrap="off" + scrollWidth/Height); forwardRef 暴露 `insertImageAtCursor` (表情/图片插入光标处)
+- home.tsx: 新建面板类型选择 (📌 便笺板 / 🎨 画布板), 列表/默认板跳转按 type 分 /b/ 与 /c/, 卡片显示"画布板"徽章
+
+### 阶段 3 — GIPHY 表情包
+- `api/stickers.tsx` (新): GET 代理 GIPHY search (中文关键词 lang=zh) / trending → 精简 `{preview, full}`; POST 转存 — 仅允许 media*.giphy.com 域 (防 SSRF) → 下载存 R2 `boards/<id>/stickers/<n>.gif` → 返回稳定 `/images/` URL (防 GIPHY 外链过期)
+- `app/components/ui/StickerPicker.tsx` (新): 弹层 — 搜索框 (300ms 防抖) + 3 列网格 + 滚动加载更多 + 初始热门; 点击转存后回调 R2 URL
+- note.tsx: 格式工具栏 😀 按钮 → StickerPicker → 插入为图片 node (自动进便笺缩略图); canvas 文本块选中工具栏 😀 → 编辑器状态下插入光标处
+- 配置: `GIPHY_API_KEY` 入 .env/.env.example/workers/env.d.ts; ⚠️ 生产还需加入 GitHub Secrets + deploy.yml secrets bulk 列表
+- **验证**: lint + typecheck 全绿; 本地迁移 0004 应用; 冒烟 — canvas 板创建/页面 200, block CRUD/对齐/位置/非法值忽略/空文本删除, GIPHY trending + "哭哭" + "crying cat" 搜索 18 条, R2 转存 200 image/gif, 非 giphy 域拒绝, 未登录 401, board/note/home 页 200
+- **注意**: 微信表情包无公开 API, 采用 GIPHY (用户已提供 key); 中文关键词结果有限, 建议混用英文关键词
+
 ## 2026-08-05 — 元属性增强 (date / 自定义值 / 键值分块) + 提示框字体
 
 - **左下角提示框字体修复** (board.tsx): 根因 — Tailwind v4 preflight 给 `kbd` 设置等宽字体 (`ui-monospace`), 且 `--font-sans` Patrick Hand 优先 (拉丁字符不走 LeMiXiaoNaiPaoTi)。修复: 提示框容器 `fontFamily: "'LeMiXiaoNaiPaoTi', var(--font-sans)"`, 3 个 kbd 加 `fontFamily: "inherit"` 覆盖; 仅提示框, 其他 UI 不变

@@ -17,12 +17,16 @@ export async function action({ request, context }: Route.ActionArgs) {
   const env = context.cloudflare.env;
   const user = await requireUser(request, env);
   if (request.method === "POST") {
-    const body = (await request.json().catch(() => ({}))) as { name?: unknown };
+    const body = (await request.json().catch(() => ({}))) as {
+      name?: unknown;
+      type?: unknown;
+    };
     const name =
       typeof body.name === "string" && body.name.trim()
         ? body.name.trim().slice(0, 30)
         : "我的生活";
-    const board = await createBoard(env, user.id, name);
+    const type = body.type === "canvas" ? "canvas" : "sticky";
+    const board = await createBoard(env, user.id, name, type);
     return { ok: true, data: { board } };
   }
   return apiError(405, "METHOD_NOT_ALLOWED", "不支持的请求方法");

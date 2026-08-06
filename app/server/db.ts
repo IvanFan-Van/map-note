@@ -1,4 +1,7 @@
 import type {
+  AlignH,
+  AlignV,
+  Block,
   BoardDetail,
   BoardSummary,
   Invitation,
@@ -61,7 +64,7 @@ export async function listBoardsForUser(
 ): Promise<BoardSummary[]> {
   const rows = await env.DB.prepare(
     `SELECT
-       b.id, b.owner_id, b.name, b.created_at, m.role,
+       b.id, b.owner_id, b.name, b.type, b.created_at, m.role,
        (SELECT COUNT(*) FROM board_members bm WHERE bm.board_id = b.id) AS member_count,
        (SELECT COUNT(*) FROM notes n WHERE n.board_id = b.id) AS note_count,
        COALESCE((SELECT MAX(n.updated_at) FROM notes n WHERE n.board_id = b.id), b.created_at) AS updated_at
@@ -75,6 +78,7 @@ export async function listBoardsForUser(
       id: string;
       owner_id: string;
       name: string;
+      type: "sticky" | "canvas";
       created_at: number;
       role: "editor" | "viewer";
       member_count: number;
@@ -85,6 +89,7 @@ export async function listBoardsForUser(
     id: r.id,
     ownerId: r.owner_id,
     name: r.name,
+    type: r.type,
     role: r.role,
     memberCount: r.member_count,
     noteCount: r.note_count,
@@ -97,13 +102,14 @@ export async function createBoard(
   env: Env,
   ownerId: string,
   name: string,
+  type: "sticky" | "canvas" = "sticky",
 ): Promise<BoardSummary> {
   const id = newId();
   const ts = now();
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO boards (id, owner_id, name, created_at) VALUES (?, ?, ?, ?)`,
-    ).bind(id, ownerId, name, ts),
+      `INSERT INTO boards (id, owner_id, name, type, created_at) VALUES (?, ?, ?, ?, ?)`,
+    ).bind(id, ownerId, name, type, ts),
     env.DB.prepare(
       `INSERT INTO board_members (board_id, user_id, role, created_at) VALUES (?, ?, 'editor', ?)`,
     ).bind(id, ownerId, ts),
@@ -112,6 +118,7 @@ export async function createBoard(
     id,
     ownerId,
     name,
+    type,
     role: "editor",
     memberCount: 1,
     noteCount: 0,
@@ -302,6 +309,138 @@ export async function deleteNote(env: Env, noteId: string): Promise<void> {
   await env.DB.prepare(`DELETE FROM notes WHERE id = ?`).bind(noteId).run();
 }
 
+// ---------- 文本块 (无限画布板) ----------
+
+const BLOCK_SELECT = `id, board_id, author_id, text, pos_x, pos_y, z_index, width, align_h, align_v, created_at, updated_at`;
+
+function blockFromRow(r: {
+  id: string;
+  board_id: string;
+  author_id: string;
+  text: string;
+  pos_x: number;
+  pos_y: number;
+  z_index: number;
+  width: number;
+  align_h: AlignH;
+  align_v: AlignV;
+  created_at: number;
+  updated_at: number;
+}): Block {
+  return {
+    id: r.id,
+    boardId: r.board_id,
+    authorId: r.author_id,
+    text: r.text,
+    posX: r.pos_x,
+    posY: r.pos_y,
+    zIndex: r.z_index,
+    width: r.width,
+    alignH: r.align_h,
+    alignV: r.align_v,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export async function listBlocks(env: Env, boardId: string): Promise<Block[]> {
+  const rows = await env.DB.prepare(
+    `SELECT ${BLOCK_SELECT} FROM blocks WHERE board_id = ? ORDER BY z_index, created_at`,
+  )
+    .bind(boardId)
+    .all<Parameters<typeof blockFromRow>[0]>();
+  return rows.results.map(blockFromRow);
+}
+
+export async function getBlock(
+  env: Env,
+  blockId: string,
+): Promise<Block | null> {
+  const row = await env.DB.prepare(`SELECT ${BLOCK_SELECT} FROM blocks WHERE id = ?`)
+    .bind(blockId)
+    .first<Parameters<typeof blockFromRow>[0]>();
+  return row ? blockFromRow(row) : null;
+}
+
+export async function createBlock(
+  env: Env,
+  boardId: string,
+  authorId: string,
+  data: { x: number; y: number; text?: string },
+): Promise<Block> {
+  const id = newId();
+  const ts = now();
+  const zRow = await env.DB.prepare(
+    `SELECT COALESCE(MAX(z_index), 0) + 1 AS z FROM blocks WHERE board_id = ?`,
+  )
+    .bind(boardId)
+    .first<{ z: number }>();
+  await env.DB.prepare(
+    `INSERT INTO blocks (id, board_id, author_id, text, pos_x, pos_y, z_index, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      id,
+      boardId,
+      authorId,
+      data.text ?? "",
+      data.x,
+      data.y,
+      zRow?.z ?? 0,
+      ts,
+      ts,
+    )
+    .run();
+  return (await getBlock(env, id))!;
+}
+
+export async function updateBlock(
+  env: Env,
+  blockId: string,
+  changes: Partial<
+    Pick<Block, "text" | "width" | "alignH" | "alignV">
+  >,
+): Promise<Block | null> {
+  const ts = now();
+  // TS 键 → DB 列名 (align_h / align_v)
+  const COLUMN_MAP: Record<string, string> = {
+    alignH: "align_h",
+    alignV: "align_v",
+  };
+  const sets: string[] = [];
+  const binds: (string | number | null)[] = [];
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === undefined) continue;
+    sets.push(`${COLUMN_MAP[key] ?? key} = ?`);
+    binds.push(value as string | number | null);
+  }
+  if (sets.length === 0) return getBlock(env, blockId);
+  sets.push("updated_at = ?");
+  binds.push(ts, blockId);
+  await env.DB.prepare(`UPDATE blocks SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds)
+    .run();
+  return getBlock(env, blockId);
+}
+
+export async function moveBlock(
+  env: Env,
+  blockId: string,
+  x: number,
+  y: number,
+): Promise<Block | null> {
+  await env.DB.prepare(
+    `UPDATE blocks SET pos_x = ?, pos_y = ?, updated_at = ? WHERE id = ?`,
+  )
+    .bind(x, y, now(), blockId)
+    .run();
+  return getBlock(env, blockId);
+}
+
+export async function deleteBlock(env: Env, blockId: string): Promise<void> {
+  await env.DB.prepare(`DELETE FROM blocks WHERE id = ?`).bind(blockId).run();
+}
+
 // ---------- 背景板详情 ----------
 
 export async function getBoardDetail(
@@ -310,14 +449,26 @@ export async function getBoardDetail(
   userId: string,
 ): Promise<BoardDetail | null> {
   const row = await env.DB.prepare(
-    `SELECT b.id, b.name, b.owner_id, m.role
+    `SELECT b.id, b.name, b.owner_id, b.type, m.role
      FROM boards b JOIN board_members m ON m.board_id = b.id
      WHERE b.id = ? AND m.user_id = ?`,
   )
     .bind(boardId, userId)
-    .first<{ id: string; name: string; owner_id: string; role: Role }>();
+    .first<{
+      id: string;
+      name: string;
+      owner_id: string;
+      type: "sticky" | "canvas";
+      role: Role;
+    }>();
   if (!row) return null;
-  return { id: row.id, name: row.name, ownerId: row.owner_id, role: row.role };
+  return {
+    id: row.id,
+    name: row.name,
+    ownerId: row.owner_id,
+    type: row.type,
+    role: row.role,
+  };
 }
 
 // ---------- 邀请与收件箱 ----------

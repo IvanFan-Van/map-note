@@ -1,9 +1,11 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { Markdown } from "~/components/markdown/Markdown";
 import { extractImages } from "~/lib/markdown";
+import { useCanvasStore } from "~/lib/canvas";
+import { useDragItem } from "~/lib/useDrag";
 import { metaDisplay, metaIconOf } from "~/lib/meta";
 import type { Note } from "~/lib/types";
-import { useBoardStore, screenToWorld } from "~/lib/store";
+import { useBoardStore } from "~/lib/store";
 
 const NOTE_WIDTH = 240;
 const NOTE_HEIGHT = 320;
@@ -53,54 +55,27 @@ export const NoteCard = memo(function NoteCard({
     onRequestDelete(note);
   };
 
-  const isDragging = dragNote?.noteId === note.id;
+  const getViewport = useCallback(() => useCanvasStore.getState().viewport, []);
+  const { handlePointerDown, isDragging } = useDragItem(
+    note.id,
+    note.posX,
+    note.posY,
+    isEditor,
+    getViewport,
+    {
+      beginDrag: startDragNote,
+      dragTo: (_id, x, y) => updateDragNote(x, y),
+      endDrag: endDragNote,
+      isDragging: (id) => dragNote?.noteId === id,
+    },
+    onMoveCommit,
+  );
+
   // NoteCard 位于已应用 translate+scale 的 world 层内, 直接使用世界坐标定位
-  const posX = isDragging ? dragNote.previewX : note.posX;
-  const posY = isDragging ? dragNote.previewY : note.posY;
+  const posX = isDragging ? dragNote!.previewX : note.posX;
+  const posY = isDragging ? dragNote!.previewY : note.posY;
 
   const images = extractImages(note.content);
-
-  const handleBodyDown = (e: React.PointerEvent) => {
-    if (!isEditor) return;
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    // 注意: 不能 preventDefault() — 取消 pointerdown 会抑制后续兼容鼠标事件
-    // (click/dblclick), 导致双击无法进入编辑页; 文本选择由 select-none 阻止
-    const noteEl = (e.currentTarget as HTMLElement).parentElement as HTMLElement;
-    noteEl.setPointerCapture(e.pointerId);
-    const vp = useBoardStore.getState().viewport;
-    const { wx, wy } = screenToWorld(e.clientX, e.clientY, vp);
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const offsetX = wx - note.posX;
-    const offsetY = wy - note.posY;
-    // 仅在移动超过阈值后才进入拖拽态 (半透明), 单击不触发拖拽视觉
-    let dragging = false;
-    const onMove = (ev: PointerEvent) => {
-      if (!dragging) {
-        const dist = Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY);
-        if (dist < 6) return;
-        dragging = true;
-        startDragNote(note.id, startX, startY, offsetX, offsetY);
-      }
-      updateDragNote(ev.clientX, ev.clientY);
-    };
-    const onUp = (_ev: PointerEvent) => {
-      if (dragging) {
-        const moved = endDragNote();
-        if (moved) onMoveCommit(note.id, moved.previewX, moved.previewY);
-      }
-      // 单击无操作; 双击由根元素 onDoubleClick 进入编辑页
-      // pointerup 前捕获已隐式释放, 显式释放需先检查, 否则抛 NotFoundError 中断清理
-      if (noteEl.hasPointerCapture(e.pointerId)) {
-        noteEl.releasePointerCapture(e.pointerId);
-      }
-      noteEl.removeEventListener("pointermove", onMove);
-      noteEl.removeEventListener("pointerup", onUp);
-    };
-    noteEl.addEventListener("pointermove", onMove);
-    noteEl.addEventListener("pointerup", onUp);
-  };
 
   return (
     <div
@@ -119,7 +94,7 @@ export const NoteCard = memo(function NoteCard({
     >
       <div
         className="note-card h-full w-full rounded-lg cursor-pointer flex flex-col"
-        onPointerDown={handleBodyDown}
+        onPointerDown={handlePointerDown}
         onDragStart={(e) => e.preventDefault()}
       >
         {isEditor && (

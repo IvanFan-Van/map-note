@@ -8,6 +8,7 @@ import { HexColorPicker } from "react-colorful";
 import { AnnotationIcon } from "~/components/editor/AnnotationIcon";
 import { AnnotationMark } from "~/components/editor/annotationMark";
 import { useAnnotationRenderer } from "~/components/editor/annotationRenderer";
+import { StickerPicker } from "~/components/ui/StickerPicker";
 import { jsonApi } from "~/lib/api";
 import {
   markdownToJSON,
@@ -71,6 +72,7 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
   // 颜色选择器受控值 (拖动实时预览, 松开鼠标才应用)
   const [pickerColor, setPickerColor] = useState(DEFAULT_ANNOTATION_COLOR);
   const [toolPage, setToolPage] = useState(0);
+  const [stickerOpen, setStickerOpen] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -506,6 +508,16 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
         )}
 
         <div className="flex items-center gap-1 ml-auto">
+          {isEditor && (
+            <button
+              onClick={() => setStickerOpen(true)}
+              disabled={!isEditor}
+              title="插入表情"
+              className="w-8 h-8 rounded-lg bg-white shadow-sm hover:bg-board text-sm flex items-center justify-center disabled:opacity-40 transition-colors"
+            >
+              😀
+            </button>
+          )}
           {formatTools.map((t) => (
             <button
               key={t.title}
@@ -570,6 +582,18 @@ export default function NoteEditor({ loaderData }: Route.ComponentProps) {
           e.target.value = "";
         }}
       />
+
+      {/* 表情选择器 (GIPHY, 转存 R2 后插入为图片) */}
+      {stickerOpen && (
+        <StickerPicker
+          boardId={board.id}
+          onPick={(url) => {
+            setStickerOpen(false);
+            editor?.chain().focus().insertContent({ type: "image", attrs: { src: url } }).run();
+          }}
+          onClose={() => setStickerOpen(false)}
+        />
+      )}
 
       {/* 选中文本浮动工具栏 */}
       {editor && isEditor && (

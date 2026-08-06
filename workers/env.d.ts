@@ -10,4 +10,5 @@ interface Env {
   PUSHER_KEY: string;
   PUSHER_SECRET: string;
   PUSHER_CLUSTER: string;
+  GIPHY_API_KEY: string;
 }

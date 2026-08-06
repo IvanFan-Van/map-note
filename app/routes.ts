@@ -7,6 +7,7 @@ export default [
   route("auth/logout", "routes/auth.logout.tsx"),
   route("b/:boardId", "routes/board.tsx"),
   route("b/:boardId/n/:noteId", "routes/note.tsx"),
+  route("c/:boardId", "routes/canvas.tsx"),
   // API
   route("api/user", "routes/api/user.tsx"),
   route("api/boards", "routes/api/boards.tsx"),
@@ -14,6 +15,10 @@ export default [
   route("api/notes", "routes/api/notes.tsx"),
   route("api/notes/:id", "routes/api/note.tsx"),
   route("api/notes/:id/position", "routes/api/note-position.tsx"),
+  route("api/blocks", "routes/api/blocks.tsx"),
+  route("api/blocks/:id", "routes/api/block.tsx"),
+  route("api/blocks/:id/position", "routes/api/block-position.tsx"),
+  route("api/stickers", "routes/api/stickers.tsx"),
   route("api/invitations", "routes/api/invitations.tsx"),
   route("api/invitations/inbox", "routes/api/invitations.inbox.tsx"),
   route("api/invitations/:id", "routes/api/invitation.tsx"),

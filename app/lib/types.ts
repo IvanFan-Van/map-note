@@ -1,4 +1,7 @@
 export type Role = "editor" | "viewer";
+export type BoardType = "sticky" | "canvas";
+export type AlignH = "left" | "center" | "right";
+export type AlignV = "top" | "middle" | "bottom";
 
 export interface User {
   id: string;
@@ -12,6 +15,7 @@ export interface BoardSummary {
   id: string;
   ownerId: string;
   name: string;
+  type: BoardType;
   role: Role;
   memberCount: number;
   noteCount: number;
@@ -53,14 +57,31 @@ export interface BoardDetail {
   id: string;
   name: string;
   ownerId: string;
+  type: BoardType;
   role: Role;
+}
+
+// 无限画布板的内容物: 可自由放置/对齐的文本块 (支持 markdown 图片)
+export interface Block {
+  id: string;
+  boardId: string;
+  authorId: string;
+  text: string;
+  posX: number;
+  posY: number;
+  zIndex: number;
+  width: number;
+  alignH: AlignH;
+  alignV: AlignV;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface UserSettings {
   defaultBoardId: string | null;
 }
 
-export type PatchEntity = "note" | "board";
+export type PatchEntity = "note" | "board" | "block";
 
 export interface PatchEvent {
   type: "patch";
