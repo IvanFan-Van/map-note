@@ -2,6 +2,15 @@
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
 
+## 2026-08-06 — 自定义域名绑定 (co-note.ivanfan.com)
+
+- 用户阿里云注册 `ivanfan.com` → Cloudflare 免费接入 (NS: mallory/ray.ns.cloudflare.com) → 状态 Active
+- `wrangler.jsonc` 加 `"routes": [{ "pattern": "co-note.ivanfan.com", "custom_domain": true }]` + `"workers_dev": true`; 部署成功 — Cloudflare 自动创建 CNAME + 签发 SSL 证书
+- **验证:** `https://co-note.ivanfan.com` HTTPS 200 / HTTP 自动跳转; `/auth/login` 302 到 Google (redirect_uri 已指向新域名); `http://` 亦 200
+- **注意:** 添加 custom domain 时 wrangler 自动禁用 workers.dev (旧地址 404), `workers_dev: true` 已加但 dashboard 层禁用需手动重开 (Dashboard → Workers → co-note → Settings → Domains & Routes)
+- docs/DEPLOYMENT.md 更新: 生产地址/自定义域名步骤/OAuth 回调/GIPHY secret 清单
+- **待办:** 用户 — Google Console 添加 `https://co-note.ivanfan.com/auth/callback`; GitHub Secrets 添加 `GIPHY_API_KEY`; 生产冒烟
+
 ## 2026-08-06 — 画布解耦 + 无限画布板 (文本块/对齐/图片) + GIPHY 表情包
 
 ### 阶段 1 — 画布基础设施解耦 (行为不变)

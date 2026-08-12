@@ -6,6 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./dist/client" },
   "observability": { "enabled": true },
+  "workers_dev": true,
+  "routes": [{ "pattern": "co-note.ivanfan.com", "custom_domain": true }],
   "d1_databases": [
     {
       "binding": "DB",

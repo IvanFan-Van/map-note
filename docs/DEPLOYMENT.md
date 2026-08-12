@@ -3,7 +3,8 @@
 co-note 面向 Cloudflare Workers 部署: React Router SSR 构建产物 + D1 数据库 + R2 图片存储。
 每次 push 到 `main` 自动完成: 检查 → 构建 → D1 迁移 → secrets 注入 → 部署。
 
-> **当前生产地址: https://co-note.blues74285700.workers.dev** (2026-08-05 首次部署)
+> **当前生产地址: https://co-note.ivanfan.com** (自定义域名, 2026-08-06 绑定)
+> 旧地址 `https://co-note.blues74285700.workers.dev` 已被 wrangler 自动禁用 (添加 custom domain 时); 如需恢复在 Dashboard → Workers → co-note → Settings → Domains & Routes 重新启用 workers.dev
 
 ## 架构
 
@@ -33,6 +34,7 @@ git push -u origin main
 | `SECRET_KEY` | 会话签名密钥 (随机长字符串) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 应用凭据 |
 | `PUSHER_APP_ID` / `PUSHER_CLUSTER` / `PUSHER_KEY` / `PUSHER_SECRET` | Pusher 应用凭据 |
+| `GIPHY_API_KEY` | GIPHY 表情包搜索 API key (https://developers.giphy.com) |
 
 ### 3. Cloudflare 资源 (已存在则跳过)
 
@@ -42,11 +44,18 @@ wrangler r2 bucket create co-note-images
 wrangler d1 migrations apply co-note --remote   # 首次迁移
 ```
 
+### 3.5 自定义域名 (co-note.ivanfan.com)
+
+1. Cloudflare Dashboard → **Add a site** → 添加 `ivanfan.com` (Free 计划)
+2. 到域名注册商 (阿里云) 把 NS 改成 Cloudflare 分配的两台, 等 Cloudflare 状态变 **Active**
+3. `wrangler.jsonc` 已配置 `"routes": [{ "pattern": "co-note.ivanfan.com", "custom_domain": true }]` — 部署时自动创建 DNS 记录 + 签发 SSL 证书 (无需手动配置 DNS/证书)
+4. 注意: 添加 custom domain 后 wrangler 会默认**禁用 workers.dev** 路由; 如需保留旧地址, 显式设置 `"workers_dev": true` (本仓库已设置, 但 dashboard 层禁用需手动重开, 见文首)
+
 ### 4. Google OAuth 回调
 
 在 Google Cloud Console 的 OAuth 客户端中, 将
-`https://<你的worker>.workers.dev/auth/callback` 加入 Authorized redirect URIs。
-(生产 worker 域名在首次部署后确定; 绑定自定义域名后需再添加对应回调。)
+`https://co-note.ivanfan.com/auth/callback` 加入 Authorized redirect URIs。
+(生产 worker 域名在首次部署后确定; 绑定自定义域名后需再添加对应回调。)`
 
 ## 部署流程
 
@@ -74,8 +83,8 @@ GitHub Actions → Deploy to Cloudflare Workers → Run workflow (workflow_dispa
 
 ## 验证部署
 
-- 访问 `https://co-note.<account>.workers.dev`
-- 检查: 首页加载 / Google 登录 / 新建背景板 / 新建便笺 / 上传图片 / 邀请协作
+- 访问 `https://co-note.ivanfan.com` (自动 HTTPS)
+- 检查: 首页加载 / Google 登录 / 新建背景板 (便笺板 + 画布板) / 新建便笺 / 文本块 / 表情搜索 / 上传图片 / 邀请协作
 - 实时同步需双账号验证 (见 README "双用户测试")
 
 ## 回滚
