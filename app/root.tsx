@@ -37,7 +37,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>co-note · 共享便笺</title>
+        <meta name="description" content="地图旅行笔记 — 记录旅途中的每个地点, 构建属于你自己的旅行地图" />
+        <title>旅行地图 · co-note</title>
         <Meta />
         <Links />
         <style

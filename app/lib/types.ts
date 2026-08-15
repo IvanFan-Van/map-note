@@ -1,7 +1,4 @@
-export type Role = "editor" | "viewer";
-export type BoardType = "sticky" | "canvas";
-export type AlignH = "left" | "center" | "right";
-export type AlignV = "top" | "middle" | "bottom";
+// ---------- 地图旅行笔记: 领域类型 ----------
 
 export interface User {
   id: string;
@@ -11,83 +8,60 @@ export interface User {
   createdAt: number;
 }
 
-export interface BoardSummary {
+/** 照片: 存于 R2, 通过 /images/... 路由鉴权访问 */
+export interface PhotoItem {
+  key: string;
+  url: string;
+  width?: number;
+  height?: number;
+}
+
+/** 元信息: 1-5 分 (5 分最高); custom=false 表示四个预设之一 */
+export interface MetaItem {
+  id: string;
+  label: string;
+  score: number;
+  custom: boolean;
+}
+
+/** 四个预设元信息 */
+export const PRESET_META_LABELS = ["满意度", "价格", "性价比", "好玩程度"] as const;
+
+/** 地点 (标记) — 列表接口返回, 附带该地点的笔记组 */
+export interface Place {
   id: string;
   ownerId: string;
   name: string;
-  type: BoardType;
-  role: Role;
-  memberCount: number;
-  noteCount: number;
-  updatedAt: number;
+  address: string;
+  description: string;
+  lat: number;
+  lng: number;
+  photos: PhotoItem[];
+  metas: MetaItem[];
+  /** 路线顺序: 箭头由上一条路径指向本地点 */
+  sortOrder: number;
   createdAt: number;
+  updatedAt: number;
+  /** 笔记组 (可选, 用户主动记录) */
+  notes: PlaceNote[];
 }
 
-export interface Note {
+/** 地点笔记: 属于某个地点的一组有序笔记 */
+export interface PlaceNote {
   id: string;
-  boardId: string;
-  authorId: string;
+  placeId: string;
   content: string;
-  posX: number;
-  posY: number;
-  zIndex: number;
-  width: number;
-  // 元属性 (Obsidian 式): 动态添加, 只有用户添加才显示
-  meta: Record<string, string>;
-  mood: string | null;
-  weather: string | null;
-  fatigue: number | null;
-  diet: string | null;
+  position: number;
   createdAt: number;
   updatedAt: number;
 }
 
-export interface Invitation {
-  id: string;
-  boardId: string;
-  boardName: string;
-  inviterId: string;
-  inviterName: string;
-  role: Role;
-  status: "pending" | "accepted" | "declined";
-  createdAt: number;
-}
-
-export interface BoardDetail {
-  id: string;
+/** 地理编码结果 (Nominatim 代理) */
+export interface GeocodeResult {
+  lat: number;
+  lng: number;
   name: string;
-  ownerId: string;
-  type: BoardType;
-  role: Role;
+  displayName: string;
 }
-
-// 无限画布板的内容物: 可自由放置/对齐的文本块 (支持 markdown 图片)
-export interface Block {
-  id: string;
-  boardId: string;
-  authorId: string;
-  text: string;
-  posX: number;
-  posY: number;
-  zIndex: number;
-  width: number;
-  alignH: AlignH;
-  alignV: AlignV;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface UserSettings {
-  defaultBoardId: string | null;
-}
-
-export type PatchEntity = "note" | "board" | "block";
-
-export interface PatchEvent {
-  type: "patch";
-  entity: PatchEntity;
-  id: string;
-  changes: Record<string, unknown>;
-  updatedAt: number;
-  sender: string;
-}
+/** 地点摘要 (别名, 便于组件语义化使用) */
+export type PlaceSummary = Place;

@@ -1,6 +1,8 @@
 .DS_Store
 .env
 node_modules/
+node_modules_old/
+*.log
 
 # React Router
 .react-router/
@@ -16,3 +18,8 @@ build/
 .claude/
 .playwright-cli/
 dist/
+
+# pnpm local store (sandbox)
+.pnpm-store/
+# pnpm local store (sandbox)
+.npmrc

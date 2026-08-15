@@ -19,7 +19,6 @@ export default defineConfig({
       build: { outDir: "dist/server" },
       // 此清单来自 cloudflare 插件 SSR 依赖预打包坑: 缺失会报
       // "There is a new version of the pre-bundle" 或运行时解析失败
-      // (含 @noble/hashes 子路径, 见 docs/CHANGELOG)
       optimizeDeps: {
         include: [
           "react",
@@ -28,13 +27,6 @@ export default defineConfig({
           "react/jsx-dev-runtime",
           "react-router",
           "isbot",
-          "pusher",
-          "pusher-js",
-          "zustand",
-          "@noble/hashes/hmac.js",
-          "@noble/hashes/legacy.js",
-          "@noble/hashes/sha2.js",
-          "@noble/hashes/utils.js",
         ],
       },
     },
