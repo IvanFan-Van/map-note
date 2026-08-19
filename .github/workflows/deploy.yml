@@ -48,17 +48,7 @@ jobs:
             SECRET_KEY
             GOOGLE_CLIENT_ID
             GOOGLE_CLIENT_SECRET
-            PUSHER_APP_ID
-            PUSHER_CLUSTER
-            PUSHER_KEY
-            PUSHER_SECRET
-            GIPHY_API_KEY
         env:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          PUSHER_APP_ID: ${{ secrets.PUSHER_APP_ID }}
-          PUSHER_CLUSTER: ${{ secrets.PUSHER_CLUSTER }}
-          PUSHER_KEY: ${{ secrets.PUSHER_KEY }}
-          PUSHER_SECRET: ${{ secrets.PUSHER_SECRET }}
-          GIPHY_API_KEY: ${{ secrets.GIPHY_API_KEY }}
