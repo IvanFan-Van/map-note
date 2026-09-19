@@ -1,6 +1,8 @@
 import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
 import { createPlace, listPlaces } from "~/server/db";
+import { DEFAULT_PLACE_DESCRIPTION } from "~/lib/types";
+import { isValidLatLng } from "~/lib/validate";
 import type { Route } from "./+types/places";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
@@ -20,21 +22,19 @@ export async function action({ request, context }: Route.ActionArgs) {
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const address = typeof body.address === "string" ? body.address.trim().slice(0, 200) : "";
   const description =
-    typeof body.description === "string"
-      ? body.description.trim().slice(0, 2000)
-      : "还未有任何描述";
+    typeof body.description === "string" ? body.description.trim().slice(0, 2000) : "";
   const lat = Number(body.lat);
   const lng = Number(body.lng);
   if (name.length < 1 || name.length > 60) {
     return apiError(400, "INVALID_NAME", "地点名称需为 1~60 个字符");
   }
-  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+  if (!isValidLatLng(lat, lng)) {
     return apiError(400, "INVALID_POSITION", "位置坐标无效");
   }
   const place = await createPlace(env, user.id, {
     name,
     address,
-    description: description || "还未有任何描述",
+    description: description || DEFAULT_PLACE_DESCRIPTION,
     lat,
     lng,
   });

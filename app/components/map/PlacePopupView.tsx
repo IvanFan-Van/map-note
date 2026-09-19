@@ -1,9 +1,7 @@
 import { useRef, useState } from "react";
-import { jsonApi } from "~/lib/api";
-import { PRESET_META_LABELS } from "~/lib/types";
+import { errorMessage, jsonApi, postForm } from "~/lib/api";
+import { DEFAULT_PLACE_DESCRIPTION, PRESET_META_LABELS } from "~/lib/types";
 import type { MetaItem, PhotoItem, PlaceSummary } from "~/lib/types";
-
-const DEFAULT_DESCRIPTION = "还未有任何描述";
 
 function Stars({ score }: { score: number }) {
   return (
@@ -49,7 +47,7 @@ export function PlacePopupView({
         <button className="pp-close" onClick={onClose} title="关闭">×</button>
       </div>
       <p className="pp-address">📍 {place.address || "未知地址"}</p>
-      <p className="pp-desc">{place.description || DEFAULT_DESCRIPTION}</p>
+      <p className="pp-desc">{place.description || DEFAULT_PLACE_DESCRIPTION}</p>
       {place.photos.length > 0 && (
         <div className="photo-strip">
           {place.photos.map((p) => (
@@ -87,16 +85,9 @@ async function uploadPhoto(placeId: string, file: File): Promise<PhotoItem> {
   const fd = new FormData();
   fd.append("placeId", placeId);
   fd.append("file", file);
-  const res = await fetch("/api/images", { method: "POST", body: fd });
-  const body = (await res.json().catch(() => null)) as {
-    ok?: boolean;
-    data?: { image?: PhotoItem };
-    error?: { message?: string };
-  } | null;
-  if (!res.ok || !body?.ok || !body.data?.image) {
-    throw new Error(body?.error?.message ?? "上传失败");
-  }
-  return body.data.image;
+  const data = await postForm<{ image?: PhotoItem }>("/api/images", fd);
+  if (!data.image) throw new Error("上传失败");
+  return data.image;
 }
 
 /** 编辑模式: 双击信息窗进入; 支持名称/地址/描述/照片组/元信息 */
@@ -113,7 +104,7 @@ function PlaceEditForm({
 }) {
   const [name, setName] = useState(place.name);
   const [address, setAddress] = useState(place.address);
-  const [description, setDescription] = useState(place.description || DEFAULT_DESCRIPTION);
+  const [description, setDescription] = useState(place.description || DEFAULT_PLACE_DESCRIPTION);
   const [photos, setPhotos] = useState<PhotoItem[]>(place.photos);
   const [metas, setMetas] = useState<MetaItem[]>(place.metas);
   const [customLabel, setCustomLabel] = useState("");
@@ -128,6 +119,13 @@ function PlaceEditForm({
       ...prev,
       { id: crypto.randomUUID(), label, score: 3, custom },
     ]);
+  };
+
+  const addCustomMeta = () => {
+    const label = customLabel.trim();
+    if (!label) return;
+    addMeta(label, true);
+    setCustomLabel("");
   };
 
   const setScore = (id: string, score: number) => {
@@ -148,7 +146,7 @@ function PlaceEditForm({
         setPhotos((prev) => [...prev, item]);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "上传失败");
+      setError(errorMessage(e, "上传失败"));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -167,13 +165,13 @@ function PlaceEditForm({
       await jsonApi("/api/places/" + place.id, "PATCH", {
         name: trimmed,
         address: address.trim(),
-        description: description.trim() || DEFAULT_DESCRIPTION,
+        description: description.trim() || DEFAULT_PLACE_DESCRIPTION,
         photos,
         metas,
       });
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存失败");
+      setError(errorMessage(e, "保存失败"));
       setSaving(false);
     }
   };
@@ -185,7 +183,7 @@ function PlaceEditForm({
       await jsonApi("/api/places/" + place.id, "DELETE");
       onDeleted();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "删除失败");
+      setError(errorMessage(e, "删除失败"));
       setSaving(false);
     }
   };
@@ -252,18 +250,9 @@ function PlaceEditForm({
           <input value={customLabel} onChange={(e) => setCustomLabel(e.target.value)} maxLength={20}
             placeholder="自定义元信息名" className="meta-custom-input"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && customLabel.trim()) {
-                addMeta(customLabel.trim(), true);
-                setCustomLabel("");
-              }
+              if (e.key === "Enter") addCustomMeta();
             }} />
-          <button type="button" className="pp-chip"
-            onClick={() => {
-              if (customLabel.trim()) {
-                addMeta(customLabel.trim(), true);
-                setCustomLabel("");
-              }
-            }}>＋添加</button>
+          <button type="button" className="pp-chip" onClick={addCustomMeta}>＋添加</button>
         </div>
       </div>
 

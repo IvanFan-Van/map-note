@@ -1,6 +1,7 @@
 import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
-import { getPlace, newId } from "~/server/db";
+import { getOwnedPlace } from "~/server/access";
+import { newId } from "~/server/db";
 import type { Route } from "./+types/images";
 
 const ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
@@ -31,9 +32,8 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (file.size > MAX_SIZE) {
     return apiError(400, "TOO_LARGE", "图片不能超过 5MB");
   }
-  const place = await getPlace(env, placeId);
-  if (!place) return apiError(404, "NOT_FOUND", "地点不存在");
-  if (place.ownerId !== user.id) return apiError(403, "FORBIDDEN", "无权操作该地点");
+  const place = await getOwnedPlace(env, user.id, placeId);
+  if (place instanceof Response) return place;
   const ext =
     file.type === "image/png" ? "png"
     : file.type === "image/webp" ? "webp"

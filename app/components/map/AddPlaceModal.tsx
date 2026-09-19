@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type * as L from "leaflet";
 import type { LeafletLib } from "./reactPopup";
-import { jsonApi } from "~/lib/api";
+import { createPinIcon, DRAFT_PIN_COLOR } from "./pinIcon";
+import { errorMessage, jsonApi } from "~/lib/api";
 import { getCurrentPosition, reverseGeocode, searchGeocode } from "~/lib/geocode";
+import { DEFAULT_PLACE_DESCRIPTION } from "~/lib/types";
 import type { GeocodeResult, PlaceSummary } from "~/lib/types";
-
-const DEFAULT_DESCRIPTION = "还未有任何描述";
 
 export interface DraftPoint {
   lat: number;
@@ -15,6 +15,16 @@ export interface DraftPoint {
 }
 
 type Step = "locating" | "candidates" | "drag" | "form";
+
+function dedupeByCoords(results: GeocodeResult[]): GeocodeResult[] {
+  const seen = new Set<string>();
+  return results.filter((r) => {
+    const key = r.lat.toFixed(5) + "," + r.lng.toFixed(5);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 /**
  * 添加地点流程:
@@ -40,8 +50,8 @@ export function AddPlaceModal({
   const [gpsPos, setGpsPos] = useState<{ lat: number; lng: number } | null>(null);
   const [form, setForm] = useState<{ lat: number; lng: number; name: string; address: string; description: string }>(
     initialDraft
-      ? { ...initialDraft, description: DEFAULT_DESCRIPTION }
-      : { lat: 0, lng: 0, name: "", address: "", description: DEFAULT_DESCRIPTION },
+      ? { ...initialDraft, description: DEFAULT_PLACE_DESCRIPTION }
+      : { lat: 0, lng: 0, name: "", address: "", description: DEFAULT_PLACE_DESCRIPTION },
   );
   const [dragPos, setDragPos] = useState<[number, number] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,15 +81,8 @@ export function AddPlaceModal({
         const rev = await reverseGeocode(pos.lat, pos.lng);
         if (rev) {
           results = [rev];
-          const nearby = await searchGeocode(rev.displayName, pos, 6);
-          const seen = new Set<string>();
-          results = nearby.filter((r) => {
-            const k = r.lat.toFixed(5) + "," + r.lng.toFixed(5);
-            if (seen.has(k)) return false;
-            seen.add(k);
-            return true;
-          });
-          if (results.length === 0) results = [rev];
+          const nearby = dedupeByCoords(await searchGeocode(rev.displayName, pos, 6));
+          if (nearby.length > 0) results = nearby;
         }
       } catch {
         // 地理编码失败时允许直接手动放置
@@ -105,12 +108,7 @@ export function AddPlaceModal({
       return;
     }
     const start: [number, number] = dragPos ?? [form.lat || 0, form.lng || 0];
-    const icon = leaflet.divIcon({
-      className: "draft-pin-wrap",
-      html: '<div class="draft-pin"><svg viewBox="0 0 30 42" width="30" height="42"><path d="M15 1C7.8 1 2 6.8 2 14c0 9.6 13 26 13 26s13-16.4 13-26C28 6.8 22.2 1 15 1z" fill="#e11d48" stroke="#fff" stroke-width="2"/><circle cx="15" cy="14" r="5.5" fill="#fff"/></svg></div>',
-      iconSize: [30, 42],
-      iconAnchor: [15, 40],
-    });
+    const icon = createPinIcon(leaflet, { color: DRAFT_PIN_COLOR, className: "draft-pin-wrap" });
     const marker = leaflet.marker(start, { icon, draggable: true }).addTo(map);
     marker.on("dragend", () => {
       const p = marker.getLatLng();
@@ -136,7 +134,7 @@ export function AddPlaceModal({
       lng: c.lng,
       name: c.name || c.displayName.slice(0, 40),
       address: c.displayName,
-      description: DEFAULT_DESCRIPTION,
+      description: DEFAULT_PLACE_DESCRIPTION,
     });
     map.panTo([c.lat, c.lng]);
     setStep("form");
@@ -164,13 +162,13 @@ export function AddPlaceModal({
       const data = await jsonApi<{ place: PlaceSummary }>("/api/places", "POST", {
         name,
         address: form.address.trim().slice(0, 200),
-        description: form.description.trim() || DEFAULT_DESCRIPTION,
+        description: form.description.trim() || DEFAULT_PLACE_DESCRIPTION,
         lat: form.lat,
         lng: form.lng,
       });
       onCreated(data.place);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存失败");
+      setError(errorMessage(e, "保存失败"));
       setSaving(false);
     }
   };

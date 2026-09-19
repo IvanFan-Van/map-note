@@ -1,6 +1,8 @@
 import { createCookieSessionStorage } from "react-router";
+import { apiError } from "~/lib/api";
 import type { User } from "~/lib/types";
 import { COOKIE_BASE } from "~/server/cookies";
+import { getUserById } from "~/server/db";
 
 export const SESSION_COOKIE = "co_note_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -31,19 +33,7 @@ export async function getSessionUser(
 ): Promise<User | null> {
   const userId = await getSessionUserId(request, env);
   if (!userId) return null;
-  const row = await env.DB.prepare(
-    `SELECT id, email, name, avatar_url, created_at FROM users WHERE id = ?`,
-  )
-    .bind(userId)
-    .first();
-  if (!row) return null;
-  return {
-    id: row.id as string,
-    email: row.email as string,
-    name: row.name as string,
-    avatarUrl: (row.avatar_url as string | null) ?? null,
-    createdAt: row.created_at as number,
-  };
+  return getUserById(env, userId);
 }
 
 export async function requireUser(
@@ -51,12 +41,7 @@ export async function requireUser(
   env: Env,
 ): Promise<User> {
   const user = await getSessionUser(request, env);
-  if (!user) {
-    throw new Response(JSON.stringify({ ok: false, error: { code: "UNAUTHORIZED", message: "请先登录" } }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  if (!user) throw apiError(401, "UNAUTHORIZED", "请先登录");
   return user;
 }
 

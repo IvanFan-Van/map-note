@@ -11,42 +11,58 @@ export function newId(): string {
 
 // ---------- 用户 ----------
 
+const USER_COLUMNS = `id, email, name, avatar_url, created_at`;
+
+interface UserRow {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url: string | null;
+  created_at: number;
+}
+
+function userFromRow(r: UserRow): User {
+  return {
+    id: r.id,
+    email: r.email,
+    name: r.name,
+    avatarUrl: r.avatar_url,
+    createdAt: r.created_at,
+  };
+}
+
+export async function getUserById(env: Env, userId: string): Promise<User | null> {
+  const row = await env.DB.prepare(
+    `SELECT ${USER_COLUMNS} FROM users WHERE id = ?`,
+  )
+    .bind(userId)
+    .first<UserRow>();
+  return row ? userFromRow(row) : null;
+}
+
 export async function findOrCreateUserByGoogle(
   env: Env,
   info: GoogleUserInfo,
 ): Promise<User> {
   const existing = await env.DB.prepare(
-    `SELECT id, email, name, avatar_url, created_at FROM users WHERE google_sub = ?`,
+    `SELECT ${USER_COLUMNS} FROM users WHERE google_sub = ?`,
   )
     .bind(info.sub)
-    .first<{
-      id: string;
-      email: string;
-      name: string;
-      avatar_url: string | null;
-      created_at: number;
-    }>();
-  if (existing) {
-    return {
-      id: existing.id,
-      email: existing.email,
-      name: existing.name,
-      avatarUrl: existing.avatar_url,
-      createdAt: existing.created_at,
-    };
-  }
+    .first<UserRow>();
+  if (existing) return userFromRow(existing);
   const id = newId();
+  const ts = now();
   await env.DB.prepare(
     `INSERT INTO users (id, google_sub, email, name, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, info.sub, info.email, info.name, info.picture, now())
+    .bind(id, info.sub, info.email, info.name, info.picture, ts)
     .run();
   return {
     id,
     email: info.email,
     name: info.name,
     avatarUrl: info.picture,
-    createdAt: now(),
+    createdAt: ts,
   };
 }
 
@@ -89,6 +105,8 @@ interface NoteRow {
   created_at: number;
   updated_at: number;
 }
+
+const NOTE_COLUMNS = `id, place_id, content, position, created_at, updated_at`;
 
 function parseJsonArray<T>(raw: string | null, fallback: T[]): T[] {
   if (!raw) return fallback;
@@ -170,12 +188,22 @@ export async function getPlace(env: Env, placeId: string): Promise<Place | null>
   if (!row) return null;
   const place = placeFromRow(row);
   const notes = await env.DB.prepare(
-    `SELECT id, place_id, content, position, created_at, updated_at FROM place_notes
+    `SELECT ${NOTE_COLUMNS} FROM place_notes
      WHERE place_id = ? ORDER BY position, created_at`,
   )
     .bind(placeId)
     .all<NoteRow>();
   return { ...place, notes: notes.results.map(noteFromRow) };
+}
+
+/** 仅查询地点归属, 用于鉴权路径 (不读取照片/笔记) */
+export async function getPlaceOwner(env: Env, placeId: string): Promise<string | null> {
+  const row = await env.DB.prepare(
+    `SELECT owner_id FROM places WHERE id = ?`,
+  )
+    .bind(placeId)
+    .first<{ owner_id: string }>();
+  return row?.owner_id ?? null;
 }
 
 export async function createPlace(
@@ -257,16 +285,17 @@ export async function createPlaceNote(
   )
     .bind(placeId)
     .first<{ next_pos: number }>();
+  const position = posRow?.next_pos ?? 0;
   await env.DB.prepare(
     `INSERT INTO place_notes (id, place_id, content, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, placeId, content, posRow?.next_pos ?? 0, ts, ts)
+    .bind(id, placeId, content, position, ts, ts)
     .run();
   return {
     id,
     placeId,
     content,
-    position: posRow?.next_pos ?? 0,
+    position,
     createdAt: ts,
     updatedAt: ts,
   };
@@ -287,7 +316,7 @@ export async function updatePlaceNote(
   }
   if (changes.position !== undefined && Number.isInteger(changes.position)) {
     const rows = await env.DB.prepare(
-      `SELECT id, place_id, content, position, created_at, updated_at FROM place_notes
+      `SELECT ${NOTE_COLUMNS} FROM place_notes
        WHERE place_id = ? ORDER BY position, created_at`,
     )
       .bind(placeId)
@@ -307,7 +336,7 @@ export async function updatePlaceNote(
     }
   }
   const row = await env.DB.prepare(
-    `SELECT id, place_id, content, position, created_at, updated_at FROM place_notes WHERE id = ? AND place_id = ?`,
+    `SELECT ${NOTE_COLUMNS} FROM place_notes WHERE id = ? AND place_id = ?`,
   )
     .bind(noteId, placeId)
     .first<NoteRow>();

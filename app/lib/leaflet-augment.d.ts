@@ -15,4 +15,13 @@ declare module "leaflet" {
     polyline: Polyline,
     options: PolylineDecoratorOptions,
   ): Layer;
+
+  /** leaflet-polylinedecorator 附加在 L.Symbol 上的符号构造器 */
+  namespace Symbol {
+    function arrowHead(options: {
+      pixelSize?: number;
+      polygon?: boolean;
+      pathOptions?: PathOptions;
+    }): unknown;
+  }
 }

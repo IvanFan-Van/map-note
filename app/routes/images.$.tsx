@@ -1,5 +1,5 @@
 import { requireUser } from "~/server/auth";
-import { getPlace } from "~/server/db";
+import { getPlaceOwner } from "~/server/db";
 import type { Route } from "./+types/images.$";
 
 export async function loader({ request, context, params }: Route.LoaderArgs) {
@@ -9,9 +9,9 @@ export async function loader({ request, context, params }: Route.LoaderArgs) {
   if (!key) return new Response("Not Found", { status: 404 });
   const match = key.match(/^places\/([^/]+)\//);
   if (!match) return new Response("Not Found", { status: 404 });
-  const place = await getPlace(env, match[1]);
-  if (!place) return new Response("Not Found", { status: 404 });
-  if (place.ownerId !== user.id) return new Response("Forbidden", { status: 403 });
+  const ownerId = await getPlaceOwner(env, match[1]);
+  if (!ownerId) return new Response("Not Found", { status: 404 });
+  if (ownerId !== user.id) return new Response("Forbidden", { status: 403 });
   const object = await env.IMAGES.get(key);
   if (!object) return new Response("Not Found", { status: 404 });
   const headers = new Headers();
