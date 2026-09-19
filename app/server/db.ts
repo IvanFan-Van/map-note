@@ -66,16 +66,10 @@ export async function findOrCreateUserByGoogle(
   };
 }
 
-export async function getUserSettings(
-  env: Env,
-  userId: string,
-): Promise<{ defaultBoardId: string | null }> {
-  const row = await env.DB.prepare(
-    `SELECT default_board_id FROM user_settings WHERE user_id = ?`,
-  )
-    .bind(userId)
-    .first<{ default_board_id: string | null }>();
-  return { defaultBoardId: row?.default_board_id ?? null };
+export async function updateUserName(env: Env, userId: string, name: string): Promise<void> {
+  await env.DB.prepare(`UPDATE users SET name = ? WHERE id = ?`)
+    .bind(name, userId)
+    .run();
 }
 
 // ---------- 地点 (places) ----------

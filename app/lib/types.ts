@@ -12,8 +12,6 @@ export interface User {
 export interface PhotoItem {
   key: string;
   url: string;
-  width?: number;
-  height?: number;
 }
 
 /** 元信息: 1-5 分 (5 分最高); custom=false 表示四个预设之一 */

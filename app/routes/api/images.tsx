@@ -21,8 +21,6 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
   const file = form.get("file");
   const placeId = String(form.get("placeId") ?? "").trim();
-  const width = Number(form.get("width") ?? 0);
-  const height = Number(form.get("height") ?? 0);
   if (!(file instanceof File) || !file.size) {
     return apiError(400, "INVALID_INPUT", "缺少图片文件");
   }
@@ -42,10 +40,6 @@ export async function action({ request, context }: Route.ActionArgs) {
   const key = "places/" + placeId + "/" + newId() + "." + ext;
   await env.IMAGES.put(key, file.stream(), {
     httpMetadata: { contentType: file.type },
-    customMetadata: {
-      width: String(width || 0),
-      height: String(height || 0),
-    },
   });
-  return { ok: true, data: { image: { key, url: "/images/" + key, width, height } } };
+  return { ok: true, data: { image: { key, url: "/images/" + key } } };
 }
