@@ -3,12 +3,13 @@ import type * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import { jsonApi } from "~/lib/api";
+import { errorMessage, jsonApi } from "~/lib/api";
 import { getCurrentPosition } from "~/lib/geocode";
 import type { Place, PlaceSummary, User } from "~/lib/types";
 import { AddPlaceModal, type DraftPoint } from "./AddPlaceModal";
 import { ClusterList } from "./ClusterList";
 import { NotesDrawer } from "./NotesDrawer";
+import { createClusterIcon, createPinIcon, PLACE_PIN_COLOR } from "./pinIcon";
 import { PlacePopupView } from "./PlacePopupView";
 import { openReactPopup, type LeafletLib } from "./reactPopup";
 import { SearchBox } from "./SearchBox";
@@ -16,6 +17,19 @@ import { SearchBox } from "./SearchBox";
 const DEFAULT_CENTER: [number, number] = [35.5, 104.0];
 const DEFAULT_ZOOM = 4;
 const ROUTE_COLOR = "#ea580c";
+
+type PlaceMarker = L.Marker & { place?: PlaceSummary };
+
+function isMarkerCluster(layer: L.Layer): layer is L.MarkerCluster {
+  return typeof (layer as { getAllChildMarkers?: unknown }).getAllChildMarkers === "function";
+}
+
+function getClusterMembers(layer: L.MarkerCluster): PlaceSummary[] {
+  return layer
+    .getAllChildMarkers()
+    .map((m) => (m as PlaceMarker).place)
+    .filter((p): p is PlaceSummary => Boolean(p));
+}
 
 /**
  * 旅行地图主界面:
@@ -89,33 +103,23 @@ export default function TravelMap({
         maxClusterRadius: 70,
         zoomToBoundsOnClick: false,
         spiderfyOnMaxZoom: true,
-        iconCreateFunction: (c: L.MarkerCluster) =>
-          Lmod.divIcon({
-            html: '<div class="cluster-icon"><span>' + c.getChildCount() + "</span></div>",
-            className: "cluster-icon-wrap",
-            iconSize: [42, 42],
-            iconAnchor: [21, 21],
-          }),
+        iconCreateFunction: (c: L.MarkerCluster) => createClusterIcon(Lmod, c.getChildCount()),
       });
       cluster.addTo(map);
       const arrows = Lmod.layerGroup().addTo(map);
 
       cluster.on("click", (e: L.LeafletMouseEvent) => {
-        const layer = e.layer as L.Marker & { place?: PlaceSummary };
-        if (layer && typeof (layer as { getAllChildMarkers?: unknown }).getAllChildMarkers === "function") {
-          const members = ((layer as unknown as { getAllChildMarkers: () => L.Marker[] }).getAllChildMarkers())
-            .map((m) => (m as L.Marker & { place?: PlaceSummary }).place)
-            .filter((p): p is PlaceSummary => Boolean(p));
-          openClusterPopup(map!, members);
+        const layer = e.layer as (L.Layer & { place?: PlaceSummary }) | undefined;
+        if (layer && isMarkerCluster(layer)) {
+          openClusterPopup(map!, getClusterMembers(layer));
         } else if (layer?.place) {
           openPlacePopup(map!, layer.place);
         }
       });
       cluster.on("dblclick", (e: L.LeafletMouseEvent) => {
-        const layer = e.layer as L.Marker & { place?: PlaceSummary };
-        if (layer && typeof (layer as { getAllChildMarkers?: unknown }).getAllChildMarkers === "function") {
-          const bounds = (layer as unknown as { getBounds: () => L.LatLngBounds }).getBounds();
-          map?.fitBounds(bounds.pad(0.25), { maxZoom: 16 });
+        const layer = e.layer as (L.Layer & { place?: PlaceSummary }) | undefined;
+        if (layer && isMarkerCluster(layer)) {
+          map?.fitBounds(layer.getBounds().pad(0.25), { maxZoom: 16 });
         } else if (layer?.place) {
           setNotesPlace(layer.place);
         }
@@ -158,12 +162,12 @@ export default function TravelMap({
       const pts: [number, number][] = [[a.lat, a.lng], [b.lat, b.lng]];
       Lmod.polyline(pts, { color: "#ffffff", weight: 7, opacity: 0.9, lineCap: "round" }).addTo(arrows);
       const line = Lmod.polyline(pts, { color: ROUTE_COLOR, weight: 3, opacity: 0.95 }).addTo(arrows);
-      (Lmod as unknown as { polylineDecorator: (l: L.Polyline, o: unknown) => L.Layer }).polylineDecorator(line, {
+      Lmod.polylineDecorator(line, {
         patterns: [
           {
             offset: "100%",
             repeat: 0,
-            symbol: (Lmod as unknown as { Symbol: { arrowHead: (o: unknown) => unknown } }).Symbol.arrowHead({
+            symbol: Lmod.Symbol.arrowHead({
               pixelSize: 13,
               polygon: false,
               pathOptions: { stroke: true, color: ROUTE_COLOR, weight: 3 },
@@ -174,18 +178,14 @@ export default function TravelMap({
     }
 
     for (const p of ordered) {
-      const thumb = p.photos[0]
-        ? '<span class="pin-thumb" style="background-image:url(\'' + p.photos[0].url + '\')"></span>'
-        : "";
-      const icon = Lmod.divIcon({
+      const icon = createPinIcon(Lmod, {
+        color: PLACE_PIN_COLOR,
         className: "place-pin-wrap",
-        html: '<div class="place-pin"><svg viewBox="0 0 30 42" width="30" height="42"><path d="M15 1C7.8 1 2 6.8 2 14c0 9.6 13 26 13 26s13-16.4 13-26C28 6.8 22.2 1 15 1z" fill="#f97316" stroke="#fff" stroke-width="2"/><circle cx="15" cy="14" r="5.5" fill="#fff"/></svg>' + thumb + "</div>",
-        iconSize: [30, 42],
-        iconAnchor: [15, 40],
+        thumbUrl: p.photos[0]?.url,
         popupAnchor: [0, -38],
       });
       const marker = Lmod.marker([p.lat, p.lng], { icon });
-      (marker as L.Marker & { place?: PlaceSummary }).place = p;
+      (marker as PlaceMarker).place = p;
       cluster.addLayer(marker);
       markersRef.current.set(p.id, marker);
     }
@@ -230,7 +230,7 @@ export default function TravelMap({
     const Lmod = leafletLibRef.current!;
     const bounds = Lmod.latLngBounds(members.map((m) => [m.lat, m.lng] as [number, number]));
     openReactPopup(
-      leafletLibRef.current!,
+      Lmod,
       map,
       bounds.getCenter(),
       (close) => (
@@ -256,7 +256,7 @@ export default function TravelMap({
         map.flyTo([pos.lat, pos.lng], Math.max(map.getZoom(), 15), { duration: 0.6 });
         showToast("已定位到当前位置");
       })
-      .catch((e) => showToast(e instanceof Error ? e.message : "定位失败, 请检查浏览器权限"));
+      .catch((e) => showToast(errorMessage(e, "定位失败, 请检查浏览器权限")));
   }, [showToast]);
 
   const startAdd = useCallback(() => {

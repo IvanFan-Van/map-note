@@ -1,4 +1,5 @@
 import { createCookieSessionStorage } from "react-router";
+import { apiError } from "~/lib/api";
 import { COOKIE_BASE } from "~/server/cookies";
 
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -116,10 +117,7 @@ export async function exchangeCode(
     }),
   });
   if (!tokenRes.ok) {
-    throw new Response(
-      JSON.stringify({ ok: false, error: { code: "OAUTH_TOKEN_FAILED", message: "换取令牌失败" } }),
-      { status: 502, headers: { "Content-Type": "application/json" } },
-    );
+    throw apiError(502, "OAUTH_TOKEN_FAILED", "换取令牌失败");
   }
   const token = (await tokenRes.json()) as { access_token: string };
 
@@ -127,10 +125,7 @@ export async function exchangeCode(
     headers: { Authorization: `Bearer ${token.access_token}` },
   });
   if (!infoRes.ok) {
-    throw new Response(
-      JSON.stringify({ ok: false, error: { code: "OAUTH_USERINFO_FAILED", message: "获取用户信息失败" } }),
-      { status: 502, headers: { "Content-Type": "application/json" } },
-    );
+    throw apiError(502, "OAUTH_USERINFO_FAILED", "获取用户信息失败");
   }
   const info = (await infoRes.json()) as GoogleUserInfo;
   return info;

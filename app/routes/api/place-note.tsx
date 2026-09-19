@@ -1,22 +1,23 @@
 import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
-import { deletePlaceNote, getPlace, updatePlaceNote } from "~/server/db";
+import { getOwnedPlace } from "~/server/access";
+import { deletePlaceNote, updatePlaceNote } from "~/server/db";
+import { validateNoteContent } from "~/lib/validate";
 import type { Route } from "./+types/place-note";
 
 export async function action({ request, context, params }: Route.ActionArgs) {
   const env = context.cloudflare.env;
   const user = await requireUser(request, env);
-  const place = await getPlace(env, params.id);
-  if (!place) return apiError(404, "NOT_FOUND", "地点不存在");
-  if (place.ownerId !== user.id) return apiError(403, "FORBIDDEN", "无权操作该地点");
+  const place = await getOwnedPlace(env, user.id, params.id);
+  if (place instanceof Response) return place;
 
   if (request.method === "PATCH") {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const changes: { content?: string; position?: number } = {};
     if (typeof body.content === "string") {
       const content = body.content.trim();
-      if (content.length < 1) return apiError(400, "INVALID_CONTENT", "笔记内容不能为空");
-      if (content.length > 5000) return apiError(400, "INVALID_CONTENT", "笔记内容不能超过 5000 个字符");
+      const contentError = validateNoteContent(content);
+      if (contentError) return apiError(400, "INVALID_CONTENT", contentError);
       changes.content = content;
     }
     if (body.position !== undefined) {

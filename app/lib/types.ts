@@ -12,8 +12,6 @@ export interface User {
 export interface PhotoItem {
   key: string;
   url: string;
-  width?: number;
-  height?: number;
 }
 
 /** 元信息: 1-5 分 (5 分最高); custom=false 表示四个预设之一 */
@@ -26,6 +24,9 @@ export interface MetaItem {
 
 /** 四个预设元信息 */
 export const PRESET_META_LABELS = ["满意度", "价格", "性价比", "好玩程度"] as const;
+
+/** 地点默认描述 (与 places 表默认值一致) */
+export const DEFAULT_PLACE_DESCRIPTION = "还未有任何描述";
 
 /** 地点 (标记) — 列表接口返回, 附带该地点的笔记组 */
 export interface Place {

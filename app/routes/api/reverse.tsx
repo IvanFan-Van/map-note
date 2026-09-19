@@ -1,6 +1,7 @@
 import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
 import { reverseGeocode } from "~/server/nominatim";
+import { isValidLatLng } from "~/lib/validate";
 import type { Route } from "./+types/reverse";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
@@ -9,7 +10,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const lat = Number(url.searchParams.get("lat"));
   const lng = Number(url.searchParams.get("lng"));
-  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+  if (!isValidLatLng(lat, lng)) {
     return apiError(400, "INVALID_POSITION", "位置坐标无效");
   }
   try {

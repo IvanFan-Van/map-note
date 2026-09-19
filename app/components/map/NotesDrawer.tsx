@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { jsonApi } from "~/lib/api";
+import { errorMessage, jsonApi } from "~/lib/api";
 import type { Place, PlaceNote, PlaceSummary } from "~/lib/types";
 
 function formatTime(ts: number): string {
@@ -31,11 +31,16 @@ export function NotesDrawer({
       setNotes(data.place.notes ?? []);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "加载失败");
+      setError(errorMessage(e, "加载失败"));
     }
   }, [place.id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const refresh = async () => {
+    await load();
+    onChanged();
+  };
 
   const addNote = async () => {
     const content = text.trim();
@@ -45,10 +50,9 @@ export function NotesDrawer({
     try {
       await jsonApi("/api/places/" + place.id + "/notes", "POST", { content });
       setText("");
-      await load();
-      onChanged();
+      await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "添加失败");
+      setError(errorMessage(e, "添加失败"));
     } finally {
       setBusy(false);
     }
@@ -58,10 +62,9 @@ export function NotesDrawer({
     if (!window.confirm("确定删除这条笔记吗?")) return;
     try {
       await jsonApi("/api/places/" + place.id + "/notes/" + id, "DELETE");
-      await load();
-      onChanged();
+      await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "删除失败");
+      setError(errorMessage(e, "删除失败"));
     }
   };
 
@@ -71,10 +74,9 @@ export function NotesDrawer({
     try {
       await jsonApi("/api/places/" + place.id + "/notes/" + id, "PATCH", { content });
       setEditingId(null);
-      await load();
-      onChanged();
+      await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存失败");
+      setError(errorMessage(e, "保存失败"));
     }
   };
 
@@ -85,10 +87,9 @@ export function NotesDrawer({
     if (idx < 0 || target < 0 || target >= notes.length) return;
     try {
       await jsonApi("/api/places/" + place.id + "/notes/" + id, "PATCH", { position: target });
-      await load();
-      onChanged();
+      await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "排序失败");
+      setError(errorMessage(e, "排序失败"));
     }
   };
 

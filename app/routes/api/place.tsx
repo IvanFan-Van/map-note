@@ -1,28 +1,24 @@
 import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
-import { deletePlace, getPlace, updatePlace } from "~/server/db";
+import { getOwnedPlace } from "~/server/access";
+import { deletePlace, updatePlace } from "~/server/db";
+import { isValidLatLng } from "~/lib/validate";
 import type { MetaItem, PhotoItem } from "~/lib/types";
 import type { Route } from "./+types/place";
-
-function isPlaceOwner(place: { ownerId: string }, userId: string): boolean {
-  return place.ownerId === userId;
-}
 
 export async function loader({ request, context, params }: Route.LoaderArgs) {
   const env = context.cloudflare.env;
   const user = await requireUser(request, env);
-  const place = await getPlace(env, params.id);
-  if (!place) return apiError(404, "NOT_FOUND", "地点不存在");
-  if (!isPlaceOwner(place, user.id)) return apiError(403, "FORBIDDEN", "无权访问该地点");
+  const place = await getOwnedPlace(env, user.id, params.id, "无权访问该地点");
+  if (place instanceof Response) return place;
   return { ok: true, data: { place } };
 }
 
 export async function action({ request, context, params }: Route.ActionArgs) {
   const env = context.cloudflare.env;
   const user = await requireUser(request, env);
-  const place = await getPlace(env, params.id);
-  if (!place) return apiError(404, "NOT_FOUND", "地点不存在");
-  if (!isPlaceOwner(place, user.id)) return apiError(403, "FORBIDDEN", "无权操作该地点");
+  const place = await getOwnedPlace(env, user.id, params.id);
+  if (place instanceof Response) return place;
 
   if (request.method === "PATCH") {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
@@ -43,10 +39,7 @@ export async function action({ request, context, params }: Route.ActionArgs) {
     if (body.lat !== undefined || body.lng !== undefined) {
       const lat = Number(body.lat);
       const lng = Number(body.lng);
-      if (
-        !Number.isFinite(lat) || lat < -90 || lat > 90 ||
-        !Number.isFinite(lng) || lng < -180 || lng > 180
-      ) {
+      if (!isValidLatLng(lat, lng)) {
         return apiError(400, "INVALID_POSITION", "位置坐标无效");
       }
       changes.lat = lat;

@@ -1,6 +1,5 @@
 import { Link } from "react-router";
 import TravelMap from "~/components/map/TravelMap";
-import type { Place } from "~/lib/types";
 import { getSessionUser } from "~/server/auth";
 import { listPlaces } from "~/server/db";
 import type { Route } from "./+types/map";
@@ -17,7 +16,6 @@ export default function MapRoute({ loaderData }: Route.ComponentProps) {
   if (!user) return <LoginGate />;
   return <TravelMap user={user} initialPlaces={places} />;
 }
-
 
 function LoginGate() {
   return (
