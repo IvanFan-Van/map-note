@@ -34,6 +34,10 @@ jobs:
 
       - name: Build
         run: pnpm run build
+        env:
+          # 高德 JS API Key 编译时内联进客户端产物
+          VITE_AMAP_KEY: ${{ secrets.VITE_AMAP_KEY }}
+          VITE_AMAP_SECURITY_CODE: ${{ secrets.VITE_AMAP_SECURITY_CODE }}
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4
@@ -48,7 +52,16 @@ jobs:
             SECRET_KEY
             GOOGLE_CLIENT_ID
             GOOGLE_CLIENT_SECRET
+            AMAP_WEB_KEY
         env:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          AMAP_WEB_KEY: ${{ secrets.AMAP_WEB_KEY }}
+
+      - name: Convert legacy coordinates to GCJ-02
+        # 幂等: 仅转换 coord_system='wgs84' 的存量地点 (详见 scripts/convert-coords-to-gcj.mjs)
+        run: node scripts/convert-coords-to-gcj.mjs --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

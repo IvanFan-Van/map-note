@@ -1,46 +1,72 @@
 import { createRoot, type Root } from "react-dom/client";
-import type * as L from "leaflet";
+import type { AMapLib } from "~/lib/amap";
 
-export type LeafletLib = typeof import("leaflet");
+export interface PopupOptions {
+  /** 附加在信息窗容器上的类名 (place-popup / cluster-popup), 宽度由该类名控制 */
+  className: string;
+  /** 相对标记位置的垂直偏移 (px, 负数向上) */
+  offsetY?: number;
+  autoPan?: boolean;
+}
 
-export interface PopupHandle {
-  popup: L.Popup;
+interface PopupHandle {
   close: () => void;
 }
 
+let activeHandle: PopupHandle | null = null;
+
+/** 关闭当前信息窗 (组件卸载/切换时调用, 避免 React root 泄漏) */
+export function closeActivePopup(): void {
+  activeHandle?.close();
+  activeHandle = null;
+}
+
 /**
- * 在 Leaflet popup 中挂载 React 内容。
- * popupopen 时创建 root 渲染, popupclose/remove 时卸载, 避免泄漏。
- * Lmod 为客户端动态加载的 leaflet 模块 (SSR 端不可用)。
+ * 在高德 InfoWindow (自定义窗体) 中挂载 React 内容。
+ * open 时创建 root 渲染, close 时卸载; 同一时间只保留一个信息窗。
  */
 export function openReactPopup(
-  Lmod: LeafletLib,
-  map: L.Map,
-  latlng: L.LatLngExpression,
+  amap: AMapLib,
+  map: AMap.Map,
+  position: [number, number],
   render: (close: () => void) => React.ReactNode,
-  options?: L.PopupOptions,
+  options: PopupOptions,
 ): PopupHandle {
-  const popup = Lmod.popup({ closeButton: false, ...options });
-  popup.setContent('<div class="popup-react-mount"></div>');
+  closeActivePopup();
+
+  const content = document.createElement("div");
+  content.className = "map-info-window " + options.className;
+  const mount = document.createElement("div");
+  mount.className = "popup-react-mount";
+  content.appendChild(mount);
+
+  const info = new amap.InfoWindow({
+    isCustom: true,
+    content,
+    anchor: "bottom-center",
+    offset: new amap.Pixel(0, options.offsetY ?? -44),
+    autoMove: options.autoPan ?? true,
+    closeWhenClickMap: true,
+  });
+
   let root: Root | null = null;
-  const mount = () => {
-    if (root) return;
-    const el = popup.getElement()?.querySelector(".popup-react-mount");
-    if (!el) return;
-    root = createRoot(el as HTMLElement);
-    root.render(render(close));
-  };
   const unmount = () => {
     root?.unmount();
     root = null;
   };
-  popup.on("popupopen", mount);
-  popup.on("popupclose", unmount);
-  popup.on("remove", unmount);
   const close = () => {
     unmount();
-    popup.close();
+    info.close();
+    if (activeHandle?.close === close) activeHandle = null;
   };
-  popup.openOn(map);
-  return { popup, close };
+  info.on("open", () => {
+    if (root) return;
+    root = createRoot(mount);
+    root.render(render(close));
+  });
+  info.on("close", unmount);
+
+  info.open(map, position);
+  activeHandle = { close };
+  return { close };
 }

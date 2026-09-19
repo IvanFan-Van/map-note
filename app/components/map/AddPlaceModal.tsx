@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import type * as L from "leaflet";
-import type { LeafletLib } from "./reactPopup";
-import { createPinIcon, DRAFT_PIN_COLOR } from "./pinIcon";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, jsonApi } from "~/lib/api";
+import type { AMapLib } from "~/lib/amap";
+import { wgs84ToGcj02 } from "~/lib/coords";
 import { getCurrentPosition, reverseGeocode, searchGeocode } from "~/lib/geocode";
 import { DEFAULT_PLACE_DESCRIPTION } from "~/lib/types";
 import type { GeocodeResult, PlaceSummary } from "~/lib/types";
+import { pinHtml, DRAFT_PIN_COLOR } from "./pinIcon";
 
 export interface DraftPoint {
   lat: number;
@@ -31,16 +31,17 @@ function dedupeByCoords(results: GeocodeResult[]): GeocodeResult[] {
  * 1. 读取当前 GPS 位置 (失败则退回地图中心手动放置)
  * 2. 逆地理编码 + 附近搜索 → 弹出"选择具体位置"候选列表
  * 3. 未选择候选 → 允许拖动标记到任意位置, 自行填写名称/描述
+ * 坐标统一为 GCJ-02 (高德坐标, 与后端存储一致)
  */
 export function AddPlaceModal({
   map,
-  leaflet,
+  amap,
   initialDraft,
   onCreated,
   onClose,
 }: {
-  map: L.Map;
-  leaflet: LeafletLib;
+  map: AMap.Map;
+  amap: AMapLib;
   initialDraft: DraftPoint | null;
   onCreated: (place: PlaceSummary) => void;
   onClose: () => void;
@@ -56,7 +57,15 @@ export function AddPlaceModal({
   const [dragPos, setDragPos] = useState<[number, number] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const draftMarkerRef = useRef<L.Marker | null>(null);
+  const draftMarkerRef = useRef<AMap.Marker | null>(null);
+  const dragStartRef = useRef<[number, number]>([0, 0]);
+
+  const startDrag = useCallback((pos: [number, number]) => {
+    dragStartRef.current = pos;
+    setDragPos(pos);
+    setForm((f) => ({ ...f, lat: pos[0], lng: pos[1] }));
+    setStep("drag");
+  }, []);
 
   // 挂载时开始定位 (无 initialDraft 时)
   useEffect(() => {
@@ -65,7 +74,8 @@ export function AddPlaceModal({
     (async () => {
       let pos: { lat: number; lng: number } | null = null;
       try {
-        pos = await getCurrentPosition();
+        const gps = await getCurrentPosition();
+        pos = wgs84ToGcj02(gps.lat, gps.lng);
       } catch {
         // 定位失败时回退到手动拖动
       }
@@ -98,35 +108,35 @@ export function AddPlaceModal({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialDraft, map, startDrag]);
 
   // 拖动步骤: 创建可拖动草稿标记
   useEffect(() => {
     if (step !== "drag") {
-      draftMarkerRef.current?.remove();
+      draftMarkerRef.current?.setMap(null);
       draftMarkerRef.current = null;
       return;
     }
-    const start: [number, number] = dragPos ?? [form.lat || 0, form.lng || 0];
-    const icon = createPinIcon(leaflet, { color: DRAFT_PIN_COLOR, className: "draft-pin-wrap" });
-    const marker = leaflet.marker(start, { icon, draggable: true }).addTo(map);
-    marker.on("dragend", () => {
-      const p = marker.getLatLng();
-      setDragPos([p.lat, p.lng]);
+    const start = dragStartRef.current;
+    const marker = new amap.Marker({
+      position: [start[1], start[0]],
+      content: pinHtml(DRAFT_PIN_COLOR, { wrapperClass: "draft-pin-wrap" }),
+      anchor: "bottom-center",
+      draggable: true,
+      zIndex: 100,
     });
-    map.panTo(start);
+    marker.setMap(map);
+    marker.on("dragend", () => {
+      const p = marker.getPosition();
+      if (p) setDragPos([p.lat, p.lng]);
+    });
+    map.panTo([start[1], start[0]]);
     draftMarkerRef.current = marker;
     return () => {
-      marker.remove();
+      marker.setMap(null);
       draftMarkerRef.current = null;
     };
-  }, [step]);
-
-  const startDrag = (pos: [number, number]) => {
-    setDragPos(pos);
-    setForm((f) => ({ ...f, lat: pos[0], lng: pos[1] }));
-    setStep("drag");
-  };
+  }, [step, amap, map]);
 
   const useCandidate = (c: GeocodeResult) => {
     setForm({
@@ -136,7 +146,7 @@ export function AddPlaceModal({
       address: c.displayName,
       description: DEFAULT_PLACE_DESCRIPTION,
     });
-    map.panTo([c.lat, c.lng]);
+    map.panTo([c.lng, c.lat]);
     setStep("form");
   };
 

@@ -57,7 +57,7 @@ export interface PlaceNote {
   updatedAt: number;
 }
 
-/** 地理编码结果 (Nominatim 代理) */
+/** 地理编码结果 (高德 Web 服务代理, GCJ-02 坐标) */
 export interface GeocodeResult {
   lat: number;
   lng: number;

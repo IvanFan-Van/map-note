@@ -1,6 +1,6 @@
 import { apiError } from "~/lib/api";
 import { requireUser } from "~/server/auth";
-import { reverseGeocode } from "~/server/nominatim";
+import { reverseGeocode } from "~/server/amap";
 import { isValidLatLng } from "~/lib/validate";
 import type { Route } from "./+types/reverse";
 
@@ -13,8 +13,11 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   if (!isValidLatLng(lat, lng)) {
     return apiError(400, "INVALID_POSITION", "位置坐标无效");
   }
+  if (!env.AMAP_WEB_KEY) {
+    return apiError(503, "GEOCODE_UNAVAILABLE", "地理编码服务未配置");
+  }
   try {
-    const result = await reverseGeocode(lat, lng);
+    const result = await reverseGeocode(env.AMAP_WEB_KEY, lat, lng);
     return { ok: true, data: { result } };
   } catch {
     return apiError(502, "GEOCODE_FAILED", "地理编码服务暂不可用, 请稍后重试");
