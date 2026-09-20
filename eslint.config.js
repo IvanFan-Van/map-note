@@ -6,15 +6,6 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["scripts/**/*.mjs"],
-    languageOptions: {
-      globals: {
-        console: "readonly",
-        process: "readonly",
-      },
-    },
-  },
-  {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       parserOptions: {

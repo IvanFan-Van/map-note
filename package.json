@@ -9,7 +9,6 @@
     "typecheck": "react-router typegen && tsc",
     "deploy": "react-router build && wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply co-note",
-    "db:coords": "node scripts/convert-coords-to-gcj.mjs",
     "lint": "eslint ."
   },
   "pnpm": {

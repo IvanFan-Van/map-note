@@ -7,6 +7,7 @@ const BASE = "https://restapi.amap.com/v3";
 type AmapText = string | unknown[];
 
 interface AmapPoi {
+  id?: AmapText;
   name?: AmapText;
   address?: AmapText;
   pname?: AmapText;
@@ -117,6 +118,7 @@ export async function searchPlaces(
       lng: loc.lng,
       name: asText(poi.name).slice(0, 80),
       displayName: joinDisplay(poi.pname, poi.cityname, poi.adname, poi.address).slice(0, 300),
+      amapPoiId: asText(poi.id) || undefined,
     });
   }
   return results;
@@ -147,5 +149,6 @@ export async function reverseGeocode(
     lng,
     name: name.slice(0, 80),
     displayName: displayName.slice(0, 300),
+    amapPoiId: asText(regeo.pois?.[0]?.id) || undefined,
   };
 }

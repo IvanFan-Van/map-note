@@ -1,40 +1,43 @@
-# 🧭 旅行地图 (co-note)
+# 🧭 地图探索 (co-note)
 
-地图旅行笔记应用 — 记录你旅途中的每一个地点, 构建一张属于自己的旅行地图。
+基于地图的内容探索平台 — 用户在地图上发布带定位的帖子, 浏览者按地点发现帖子。
 
 ## 功能
 
-- **全屏交互式地图** (高德 JS API 2.0, GCJ-02 坐标), 支持缩放 / 拖拽, 并可通过浏览器 GPS 定位到当前位置
-- **添加地点**: 定位当前位置 → 自动逆地理编码 → 弹出候选位置列表供选择; 不选择候选时, 可任意拖动标记到任何位置并自行填写名称 / 描述; 也支持关键词搜索地址
-- **标记信息窗**: 点击标记弹出悬浮窗, 展示名称、地址、描述、照片组 (居中裁剪固定长宽、超出宽度横向滚动)、元信息、笔记预览; 双击信息窗进入编辑
-- **路线箭头**: 标记之间按记录顺序以箭头直线相连 (由上一个地点指向最新地点)
-- **标记聚合**: 地图缩小时相近标记自动聚合为标记组 — 单击标记组显示组内标记列表, 双击标记组自动缩放至全部标记可见; 点击列表项跳转到该标记并居中显示
-- **笔记组**: 双击标记打开笔记组编辑器, 支持创建 / 编辑 / 删除 / 排序笔记
-- **元信息**: 满意度 / 价格 / 性价比 / 好玩程度四个预设 + 自定义元信息, 每项 1-5 分
-- **照片上传**: 每个地点可上传照片组 (PNG / JPG / WebP / GIF, ≤5MB)
+- **探索地图**: 全屏高德地图 (GCJ-02), 展示当前视野内有帖子的地点 — 单个帖子显示标记, 多个帖子显示数量气泡; 缩放 / 拖拽自动刷新
+- **底部抽屉**: 点击地点标记弹出抽屉, 查看该地点下的帖子列表 (游标分页), 点击卡片进入帖子详情
+- **帖子详情**: 公开分享页 (SSR), 展示标题 / 正文 / 照片组 / 作者 / 定位; 作者可编辑、删除、增删照片
+- **发帖**: GPS 定位 / 关键词搜索 / 拖动标记选点 → 自动逆地理编码归一化到地点 → 填写标题、正文、可见性 (公开 / 私密), 并上传照片
+- **账号**: Google OAuth 登录; 浏览无需登录, 发帖与编辑需登录; 私密帖子仅作者可见
 
 ## 技术栈
 
 - React Router v7 (SSR) + React 19 + Tailwind CSS v4
 - Cloudflare Workers + D1 (SQLite) + R2 (图片存储)
-- 高德地图 JS API 2.0 (MarkerCluster 聚合 + ToolBar 控件)
-- 高德 Web 服务地理编码代理 (搜索 / 逆地理编码, 服务端调用), Google OAuth 登录
+- 高德地图 JS API 2.0 (客户端脚本注入) + Web 服务地理编码 (服务端代理)
+- Google OAuth 登录
+
+## 数据模型
+
+- `users`: Google 账号用户
+- `locations`: 归一化地点 (按高德 POI ID 或坐标邻近 ~50m 合并), `post_count` 冗余公开帖子数
+- `posts`: 帖子 (作者 / 地点 / 坐标与名称快照 / 可见性), 坐标统一 GCJ-02
+- `post_media`: 帖子照片 (R2 key, 有序)
 
 ## 开发
 
 ```bash
 pnpm install
-wrangler d1 migrations apply co-note --local   # 初始化本地数据库
-pnpm dev                                       # http://localhost:5173
+pnpm db:migrate   # 初始化/更新本地 D1 (等价 wrangler d1 migrations apply co-note --local)
+pnpm dev          # http://localhost:5173
+pnpm lint
 pnpm typecheck
 pnpm build
-pnpm deploy                                    # 构建并部署到 Cloudflare
+pnpm deploy       # 构建并部署到 Cloudflare
 ```
 
-需要环境变量: `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_AMAP_KEY`, `VITE_AMAP_SECURITY_CODE` (JS API, 客户端) 与 `AMAP_WEB_KEY` (Web 服务, 服务端), 参见 `.env.example`; 均在高德开放平台控制台申请。
-
-坐标统一使用 GCJ-02 (高德坐标)。存量 WGS-84 数据由 `node scripts/convert-coords-to-gcj.mjs [--remote]` 一次性转换 (CI 部署后自动执行)。
+需要环境变量: `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_AMAP_KEY`, `VITE_AMAP_SECURITY_CODE` (JS API, 客户端) 与 `AMAP_WEB_KEY` (Web 服务, 服务端), 参见 `.env.example`; 均在高德开放平台控制台申请, JS API Key 需配置域名白名单。
 
 ## 部署
 
-应用部署在 Cloudflare Workers, 自定义域名 `co-note.ivanfan.com`, D1 数据库与 R2 存储桶见 `wrangler.jsonc`。
+应用部署在 Cloudflare Workers, 自定义域名 `co-note.ivanfan.com`, D1 数据库与 R2 存储桶见 `wrangler.jsonc`。push `main` 自动执行 lint / typecheck / build、远程 D1 迁移与部署。

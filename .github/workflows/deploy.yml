@@ -58,10 +58,3 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           AMAP_WEB_KEY: ${{ secrets.AMAP_WEB_KEY }}
-
-      - name: Convert legacy coordinates to GCJ-02
-        # 幂等: 仅转换 coord_system='wgs84' 的存量地点 (详见 scripts/convert-coords-to-gcj.mjs)
-        run: node scripts/convert-coords-to-gcj.mjs --remote
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

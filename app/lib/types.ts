@@ -1,4 +1,4 @@
-// ---------- 地图旅行笔记: 领域类型 ----------
+// ---------- 探索帖子: 领域类型 ----------
 
 export interface User {
   id: string;
@@ -8,53 +8,60 @@ export interface User {
   createdAt: number;
 }
 
-/** 照片: 存于 R2, 通过 /images/... 路由鉴权访问 */
-export interface PhotoItem {
+/** 帖子作者摘要 (列表/详情展示用) */
+export interface PostAuthor {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+/** 帖子媒体: 存于 R2, 通过 /images/... 路由访问 */
+export interface PostMedia {
+  id: string;
+  kind: "image" | "video";
   key: string;
   url: string;
+  width: number;
+  height: number;
+  position: number;
 }
 
-/** 元信息: 1-5 分 (5 分最高); custom=false 表示四个预设之一 */
-export interface MetaItem {
+/** 帖子 (详情): 必带定位 */
+export interface Post {
   id: string;
-  label: string;
-  score: number;
-  custom: boolean;
-}
-
-/** 四个预设元信息 */
-export const PRESET_META_LABELS = ["满意度", "价格", "性价比", "好玩程度"] as const;
-
-/** 地点默认描述 (与 places 表默认值一致) */
-export const DEFAULT_PLACE_DESCRIPTION = "还未有任何描述";
-
-/** 地点 (标记) — 列表接口返回, 附带该地点的笔记组 */
-export interface Place {
-  id: string;
-  ownerId: string;
-  name: string;
-  address: string;
-  description: string;
+  authorId: string;
+  locationId: string;
   lat: number;
   lng: number;
-  photos: PhotoItem[];
-  metas: MetaItem[];
-  /** 路线顺序: 箭头由上一条路径指向本地点 */
-  sortOrder: number;
+  placeName: string;
+  address: string;
+  title: string;
+  content: string;
+  coverUrl: string | null;
+  visibility: "public" | "private";
   createdAt: number;
   updatedAt: number;
-  /** 笔记组 (可选, 用户主动记录) */
-  notes: PlaceNote[];
+  media: PostMedia[];
+  author: PostAuthor | null;
 }
 
-/** 地点笔记: 属于某个地点的一组有序笔记 */
-export interface PlaceNote {
+/** 帖子列表项 (抽屉/个人页) */
+export interface PostSummary {
   id: string;
-  placeId: string;
-  content: string;
-  position: number;
+  title: string;
+  coverUrl: string | null;
   createdAt: number;
-  updatedAt: number;
+  author: PostAuthor | null;
+}
+
+/** 地图上的地点 (含帖子数量) */
+export interface LocationPoint {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  postCount: number;
 }
 
 /** 地理编码结果 (高德 Web 服务代理, GCJ-02 坐标) */
@@ -63,6 +70,14 @@ export interface GeocodeResult {
   lng: number;
   name: string;
   displayName: string;
+  amapPoiId?: string;
 }
-/** 地点摘要 (别名, 便于组件语义化使用) */
-export type PlaceSummary = Place;
+
+/** 发帖定位草稿: 由 GPS / 搜索 / 拖动确定 */
+export interface DraftPoint {
+  lat: number;
+  lng: number;
+  name: string;
+  address: string;
+  amapPoiId?: string;
+}
