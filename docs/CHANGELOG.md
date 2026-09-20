@@ -1,15 +1,24 @@
 # 修改记录 (Changelog)
 
 > 每次提交记录修改的文件、改动内容与最终结果。与 git 提交一一对应。
+> 注: 2026-09-20 应用更名为 map-note, 本文档历史条目中的旧名称已同步替换。
 
-## 2026-08-06 — 自定义域名绑定 (co-note.ivanfan.com)
+## 2026-09-20 — 更名 map-note (域名 map-note.ivanfan.com)
+
+- 应用名 `co-note` → `map-note`: `package.json`、Worker 名、页面标题与 meta、会话/ OAuth cookie 名 (`map_note_session` / `map_note_oauth`)
+- Cloudflare 资源重建: D1 `map-note` (uuid `2bd734bf-d832-425f-b268-00aee2669c2a`) 与 R2 `map-note-images`; `wrangler.jsonc` 绑定与 `database_id` 已更新 (旧资源保留待手动删除)
+- 自定义域名 `co-note.ivanfan.com` → `map-note.ivanfan.com`; CI 迁移命令改为 `wrangler d1 migrations apply map-note --remote`
+- 产品已从旅行地图重构为地图探索帖子平台 (见 0008 迁移): locations / posts / post_media
+- **待用户操作:** Google Console 添加 `https://map-note.ivanfan.com/auth/callback`; 高德 JS API Key 白名单加 `map-note.ivanfan.com`
+
+## 2026-08-06 — 自定义域名绑定 (map-note.ivanfan.com)
 
 - 用户阿里云注册 `ivanfan.com` → Cloudflare 免费接入 (NS: mallory/ray.ns.cloudflare.com) → 状态 Active
-- `wrangler.jsonc` 加 `"routes": [{ "pattern": "co-note.ivanfan.com", "custom_domain": true }]` + `"workers_dev": true`; 部署成功 — Cloudflare 自动创建 CNAME + 签发 SSL 证书
-- **验证:** `https://co-note.ivanfan.com` HTTPS 200 / HTTP 自动跳转; `/auth/login` 302 到 Google (redirect_uri 已指向新域名); `http://` 亦 200
-- **注意:** 添加 custom domain 时 wrangler 自动禁用 workers.dev (旧地址 404), `workers_dev: true` 已加但 dashboard 层禁用需手动重开 (Dashboard → Workers → co-note → Settings → Domains & Routes)
+- `wrangler.jsonc` 加 `"routes": [{ "pattern": "map-note.ivanfan.com", "custom_domain": true }]` + `"workers_dev": true`; 部署成功 — Cloudflare 自动创建 CNAME + 签发 SSL 证书
+- **验证:** `https://map-note.ivanfan.com` HTTPS 200 / HTTP 自动跳转; `/auth/login` 302 到 Google (redirect_uri 已指向新域名); `http://` 亦 200
+- **注意:** 添加 custom domain 时 wrangler 自动禁用 workers.dev (旧地址 404), `workers_dev: true` 已加但 dashboard 层禁用需手动重开 (Dashboard → Workers → map-note → Settings → Domains & Routes)
 - docs/DEPLOYMENT.md 更新: 生产地址/自定义域名步骤/OAuth 回调/GIPHY secret 清单
-- **待办:** 用户 — Google Console 添加 `https://co-note.ivanfan.com/auth/callback`; GitHub Secrets 添加 `GIPHY_API_KEY`; 生产冒烟
+- **待办:** 用户 — Google Console 添加 `https://map-note.ivanfan.com/auth/callback`; GitHub Secrets 添加 `GIPHY_API_KEY`; 生产冒烟
 
 ## 2026-08-06 — 画布解耦 + 无限画布板 (文本块/对齐/图片) + GIPHY 表情包
 
@@ -61,8 +70,8 @@
   - `.github/workflows/deploy.yml`: push main / workflow_dispatch → 检查/构建 → `wrangler d1 migrations apply --remote` → secrets 注入 (`wrangler secret bulk`, 7 个应用密钥) → `wrangler deploy`
   - `package.json` 补 `packageManager: pnpm@10.34.1` (pnpm/action-setup v4 需要)
 - **构建修复:** `react-router build` 原本失败 — v7 与 cloudflare 插件集成缺口 (SSR 钩子读 `dist/server/.vite/manifest.json`, 插件默认输出 `dist/ssr`)。修复: `environments.ssr.build.outDir = "dist/server"`; `react-router.config.ts` `buildDirectory: "dist"`; `wrangler.jsonc` assets → `./dist/client`
-- **生产资源初始化:** D1 数据库 (5361eb18, 迁移 0001/0002 已应用)、R2 bucket co-note-images 已存在; Google OAuth 生产回调 URL 待用户添加
-- **部署结果:** 首次 CI 通过; Deploy 经 token 权限修复 (旧 token 仅 account/user read → 更新为含 Workers Scripts/D1/R2 Edit) 后成功 — **生产地址 `https://co-note.blues74285700.workers.dev`**, SSR 登录页/静态资源/路由验证通过
+- **生产资源初始化:** D1 数据库 (5361eb18, 迁移 0001/0002 已应用)、R2 bucket map-note-images 已存在; Google OAuth 生产回调 URL 待用户添加
+- **部署结果:** 首次 CI 通过; Deploy 经 token 权限修复 (旧 token 仅 account/user read → 更新为含 Workers Scripts/D1/R2 Edit) 后成功 — **生产地址 `https://map-note.blues74285700.workers.dev`**, SSR 登录页/静态资源/路由验证通过
 - **验证:** 本地 build + `wrangler deploy --dry-run` 通过 (worker 2.27MB + 30 assets); 生产 `GET /` (Accept: text/html) 200 SSR 正常; 未登录访问 auth 路由 302
 - **待办:** 用户添加 Google OAuth 回调; 生产冒烟 (登录/建板/便笺/图片/双账号实时)
 
@@ -207,7 +216,7 @@
 - **修改文件:**
   - `package.json` / `pnpm-lock.yaml`: 新增依赖 (pusher/pusher-js/react-markdown/remark-gfm/zustand/clsx/lucide-react; dev: wrangler/@cloudflare/vite-plugin/@cloudflare/workers-types/vite-tsconfig-paths); **React Router v8 → v7.9.6** (vite 7, @cloudflare/vite-plugin 1.15.3, @react-router/dev 7.9.6); 新增 scripts (deploy/db:migrate)
   - `vite.config.ts`: 接入 cloudflare 插件 (`viteEnvironment: { name: "ssr" }`, 置于首位) + SSR 环境依赖预打包列表
-  - `wrangler.jsonc` (新建): D1 `co-note` (database_id 已填入) + R2 `co-note-images` 绑定
+  - `wrangler.jsonc` (新建): D1 `map-note` (database_id 已填入) + R2 `map-note-images` 绑定
   - `workers/app.ts` (新建): Worker 入口, v7 `AppLoadContext` 增强注入 `context.cloudflare.env`
   - `workers/env.d.ts` (新建): Env 类型 (DB/IMAGES/各 Secret)
   - `migrations/0001_init.sql` (新建): 7 张表 + 4 个索引, 本地迁移已应用
@@ -219,7 +228,7 @@
   - 删除: `app/welcome/*` (模板组件)、`app/server/context.ts` (v8 专用, 降级后移除)
   - `tsconfig.json`: 加入 @cloudflare/workers-types; `.gitignore`: 忽略 `.wrangler/`
 - **改动:**
-  - 云端: 创建 D1 `co-note` (APAC) 与 R2 bucket `co-note-images`; 应用 0001_init 迁移 (本地)
+  - 云端: 创建 D1 `map-note` (APAC) 与 R2 bucket `map-note-images`; 应用 0001_init 迁移 (本地)
   - 身份: Google OAuth (Authorization Code + PKCE) 全流程, 登录后签发 30 天签名会话 Cookie, 未登录 API 返回 401
   - 首页: 未登录显示 Google 登录按钮, 登录后显示背景板列表/新建/账户菜单 (复制用户 ID、登出)
 - **踩坑记录:**

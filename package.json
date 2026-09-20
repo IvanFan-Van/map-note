@@ -1,5 +1,5 @@
 {
-  "name": "co-note",
+  "name": "map-note",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc",
     "deploy": "react-router build && wrangler deploy",
-    "db:migrate": "wrangler d1 migrations apply co-note",
+    "db:migrate": "wrangler d1 migrations apply map-note",
     "lint": "eslint ."
   },
   "pnpm": {

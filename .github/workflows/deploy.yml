@@ -46,7 +46,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # 迁移生产 D1 数据库 (幂等, 已应用的迁移会跳过)
           preCommands: |
-            wrangler d1 migrations apply co-note --remote
+            wrangler d1 migrations apply map-note --remote
           # Worker secrets 注入 (wrangler secret put, 已存在则覆盖)
           secrets: |
             SECRET_KEY

@@ -37,8 +37,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="description" content="地图旅行笔记 — 记录旅途中的每个地点, 构建属于你自己的旅行地图" />
-        <title>旅行地图 · co-note</title>
+        <meta name="description" content="地图探索 — 在地图上发现和分享带定位的帖子" />
+        <title>地图探索 · map-note</title>
         <Meta />
         <Links />
         <style

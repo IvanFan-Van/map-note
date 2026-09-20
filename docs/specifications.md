@@ -1,4 +1,6 @@
-# co-note 共享便笺项目 · 规格说明书 (Specifications)
+# map-note 共享便笺项目 · 规格说明书 (Specifications)
+
+> **历史文档**: 本文档描述已废弃的"共享便笺"产品 (背景板/便笺/画布), 当前产品为地图探索帖子平台, 以 README 与代码为准。
 
 > 版本: v1.1 (2026-08-04)
 > 状态: 开发蓝图, 指导整个项目的实现
@@ -10,7 +12,7 @@
 
 ### 1.1 愿景
 
-co-note 是一款"自由钉在无限桌面上的共享便笺"。用户打开页面后看到的是一块无限大小的背景板(下文统一称 **背景板**), 可以在任意位置"钉"上便笺, 与受邀的好友共同编辑、实时同步, 用于记录生活点滴。
+map-note 是一款"自由钉在无限桌面上的共享便笺"。用户打开页面后看到的是一块无限大小的背景板(下文统一称 **背景板**), 可以在任意位置"钉"上便笺, 与受邀的好友共同编辑、实时同步, 用于记录生活点滴。
 
 ### 1.2 核心概念
 
@@ -97,8 +99,8 @@ co-note 是一款"自由钉在无限桌面上的共享便笺"。用户打开页�
 
 | 绑定 / 凭据 | 资源 | 用途 |
 | --- | --- | --- |
-| `DB` | D1 数据库 `co-note` | 所有结构化数据 (users/boards/notes/links/...) |
-| `IMAGES` | R2 Bucket `co-note-images` | 图片对象, key 不可猜测 (uuid), 通过 worker 路由读取 |
+| `DB` | D1 数据库 `map-note` | 所有结构化数据 (users/boards/notes/links/...) |
+| `IMAGES` | R2 Bucket `map-note-images` | 图片对象, key 不可猜测 (uuid), 通过 worker 路由读取 |
 | `SECRET_KEY` | Worker Secret | 会话 cookie HMAC 签名密钥 |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Worker Secret | Google OAuth 客户端凭据 |
 | `PUSHER_APP_ID` / `PUSHER_KEY` / `PUSHER_SECRET` / `PUSHER_CLUSTER` | Worker Secret | Pusher 应用凭据 (服务端触发 + 客户端连接) |
@@ -266,8 +268,8 @@ CREATE INDEX idx_invites_invitee ON invitations(invitee_id, status);
 
 ### 4.3 迁移策略
 
-- 使用 wrangler 官方迁移: `migrations/0001_init.sql` 等, 通过 `wrangler d1 migrations apply co-note --local/--remote` 执行;
-- 本地开发用 `wrangler d1 migrations apply co-note --local` (miniflare 本地 SQLite);
+- 使用 wrangler 官方迁移: `migrations/0001_init.sql` 等, 通过 `wrangler d1 migrations apply map-note --local/--remote` 执行;
+- 本地开发用 `wrangler d1 migrations apply map-note --local` (miniflare 本地 SQLite);
 - 每次 schema 变更新增一个递增迁移文件, 不修改已应用的文件。
 
 ---
@@ -292,7 +294,7 @@ CREATE INDEX idx_invites_invitee ON invitations(invitee_id, status);
 
 ### 5.3 会话
 
-- Cookie: `co_note_session = base64({userId, exp}) + "." + HMAC_SHA256(SECRET_KEY)`, 有效期 30 天;
+- Cookie: `map_note_session = base64({userId, exp}) + "." + HMAC_SHA256(SECRET_KEY)`, 有效期 30 天;
 - 各 loader/action 通过 `app/server/auth.ts` 的 `requireUser()` 校验签名与过期时间;
 - 用户 ID 通过右上角账户菜单"复制我的 ID"分享, 对方用该 ID 发起邀请。
 
@@ -689,17 +691,17 @@ export default [
 ```jsonc
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "co-note",
+  "name": "map-note",
   "main": "./workers/app.ts",
   "compatibility_date": "2026-07-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./build/client" },
   "observability": { "enabled": true },
   "d1_databases": [
-    { "binding": "DB", "database_name": "co-note", "database_id": "<创建后填入>" }
+    { "binding": "DB", "database_name": "map-note", "database_id": "<创建后填入>" }
   ],
   "r2_buckets": [
-    { "binding": "IMAGES", "bucket_name": "co-note-images" }
+    { "binding": "IMAGES", "bucket_name": "map-note-images" }
   ]
 }
 ```
@@ -742,8 +744,8 @@ export default {
 ### 10.4 命令
 
 ```bash
-pnpm dlx wrangler d1 create co-note              # 创建数据库 (填入 database_id)
-pnpm dlx wrangler r2 bucket create co-note-images
+pnpm dlx wrangler d1 create map-note              # 创建数据库 (填入 database_id)
+pnpm dlx wrangler r2 bucket create map-note-images
 pnpm dlx wrangler secret put SECRET_KEY          # 会话签名密钥
 pnpm dlx wrangler secret put GOOGLE_CLIENT_ID    # Google OAuth Client ID
 pnpm dlx wrangler secret put GOOGLE_CLIENT_SECRET
@@ -751,8 +753,8 @@ pnpm dlx wrangler secret put PUSHER_APP_ID       # Pusher 应用凭据 (dashboar
 pnpm dlx wrangler secret put PUSHER_KEY
 pnpm dlx wrangler secret put PUSHER_SECRET
 pnpm dlx wrangler secret put PUSHER_CLUSTER      # 如 ap1 / mt1 (与前端 key 配对)
-pnpm dlx wrangler d1 migrations apply co-note --local   # 本地迁移
-pnpm dlx wrangler d1 migrations apply co-note --remote  # 生产迁移
+pnpm dlx wrangler d1 migrations apply map-note --local   # 本地迁移
+pnpm dlx wrangler d1 migrations apply map-note --remote  # 生产迁移
 pnpm dev        # @cloudflare/vite-plugin 本地开发 (Workers 运行时 + 本地 D1/R2 模拟; Pusher 连云端)
 pnpm run build && pnpm dlx wrangler deploy
 ```

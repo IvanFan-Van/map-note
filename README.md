@@ -1,4 +1,4 @@
-# 🧭 Map Explore (co-note)
+# 🧭 Map Explore (map-note)
 
 A map-based content platform: users publish geo-tagged posts, visitors discover them by location.
 
@@ -28,7 +28,7 @@ A map-based content platform: users publish geo-tagged posts, visitors discover 
 
 ```bash
 pnpm install
-pnpm db:migrate   # apply migrations to local D1 (wrangler d1 migrations apply co-note --local)
+pnpm db:migrate   # apply migrations to local D1 (wrangler d1 migrations apply map-note --local)
 pnpm dev          # http://localhost:5173
 pnpm lint
 pnpm typecheck
@@ -40,4 +40,4 @@ Env vars: `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_AMAP_K
 
 ## Deployment
 
-Deployed on Cloudflare Workers at `co-note.ivanfan.com` (D1 + R2 bindings in `wrangler.jsonc`). Pushing to `main` runs lint / typecheck / build, remote D1 migrations and deploy.
+Deployed on Cloudflare Workers at `map-note.ivanfan.com` (D1 + R2 bindings in `wrangler.jsonc`). Pushing to `main` runs lint / typecheck / build, remote D1 migrations and deploy.

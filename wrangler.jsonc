@@ -1,21 +1,21 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "co-note",
+  "name": "map-note",
   "main": "./workers/app.ts",
   "compatibility_date": "2025-11-25",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./dist/client" },
   "observability": { "enabled": true },
   "workers_dev": true,
-  "routes": [{ "pattern": "co-note.ivanfan.com", "custom_domain": true }],
+  "routes": [{ "pattern": "map-note.ivanfan.com", "custom_domain": true }],
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "co-note",
-      "database_id": "5361eb18-f9f2-4ed2-bc92-5015f289cfb5"
+      "database_name": "map-note",
+      "database_id": "2bd734bf-d832-425f-b268-00aee2669c2a"
     }
   ],
   "r2_buckets": [
-    { "binding": "IMAGES", "bucket_name": "co-note-images" }
+    { "binding": "IMAGES", "bucket_name": "map-note-images" }
   ]
 }

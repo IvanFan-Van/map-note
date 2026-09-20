@@ -14,3 +14,5 @@
    - 优化或重构（不改变原功能）：创建 `optim/<branch_name>` 或 `refac/<branch_name>` 分支。
 3. 合并分支时始终使用 `--no-ff` 参数。
 4. 合并前需要询问用户得到许可
+
+使用 browser-use skill 以及 qa skill 来完成前端应用的测试与评估。

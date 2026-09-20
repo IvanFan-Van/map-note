@@ -73,7 +73,7 @@
 }
 
 /* ---------- 地图布局 ---------- */
-.travel-map-root { position: fixed; inset: 0; }
+.explore-map-root { position: fixed; inset: 0; }
 .map-container { position: absolute; inset: 0; background: #dfe8ef; }
 
 .map-header {
