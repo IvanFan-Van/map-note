@@ -4,7 +4,7 @@ A map-based travel journal: record every place you visit on an interactive map a
 
 ## Features
 
-- Full-screen interactive map (Leaflet + OpenStreetMap) with zoom/pan and GPS geolocation
+- Full-screen interactive map (AMap JS API 2.0, GCJ-02) with zoom/pan and GPS geolocation
 - Add places: geolocate → reverse-geocode → pick from a candidate list, or drag the marker anywhere and fill in name/description yourself; keyword address search included
 - Marker info window: name, address, description, photo strip (center-cropped, horizontally scrollable), 1–5 star meta tags (satisfaction / price / value / fun + custom), note preview; double-click to edit
 - Route arrows connecting markers in visit order (previous → latest)
@@ -16,8 +16,7 @@ A map-based travel journal: record every place you visit on an interactive map a
 
 - React Router v7 (SSR) + React 19 + Tailwind CSS v4
 - Cloudflare Workers + D1 + R2
-- Leaflet, leaflet.markercluster, leaflet-polylinedecorator
-- Nominatim geocoding proxy, Google OAuth
+- AMap (Gaode) JS API 2.0 with MarkerCluster, AMap Web Service geocoding proxy, Google OAuth
 
 ## Development
 
@@ -30,7 +29,9 @@ pnpm build
 pnpm deploy
 ```
 
-Env vars: `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (see `.env.example`).
+Env vars: `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_AMAP_KEY`, `VITE_AMAP_SECURITY_CODE` (JS API, client), `AMAP_WEB_KEY` (Web Service, server) — see `.env.example`. All keys come from the AMap open platform console.
+
+Coordinates are stored as GCJ-02 (AMap). Legacy WGS-84 rows are converted once by `node scripts/convert-coords-to-gcj.mjs [--remote]` (runs automatically in CI after deploy).
 
 ## Deployment
 

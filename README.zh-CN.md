@@ -4,7 +4,7 @@
 
 ## 功能
 
-- **全屏交互式地图** (Leaflet + OpenStreetMap), 支持缩放 / 拖拽, 并可通过浏览器 GPS 定位到当前位置
+- **全屏交互式地图** (高德 JS API 2.0, GCJ-02 坐标), 支持缩放 / 拖拽, 并可通过浏览器 GPS 定位到当前位置
 - **添加地点**: 定位当前位置 → 自动逆地理编码 → 弹出候选位置列表供选择; 不选择候选时, 可任意拖动标记到任何位置并自行填写名称 / 描述; 也支持关键词搜索地址
 - **标记信息窗**: 点击标记弹出悬浮窗, 展示名称、地址、描述、照片组 (居中裁剪固定长宽、超出宽度横向滚动)、元信息、笔记预览; 双击信息窗进入编辑
 - **路线箭头**: 标记之间按记录顺序以箭头直线相连 (由上一个地点指向最新地点)
@@ -17,8 +17,8 @@
 
 - React Router v7 (SSR) + React 19 + Tailwind CSS v4
 - Cloudflare Workers + D1 (SQLite) + R2 (图片存储)
-- Leaflet + leaflet.markercluster (聚合) + leaflet-polylinedecorator (箭头)
-- Nominatim (OpenStreetMap) 地理编码代理, Google OAuth 登录
+- 高德地图 JS API 2.0 (MarkerCluster 聚合 + ToolBar 控件)
+- 高德 Web 服务地理编码代理 (搜索 / 逆地理编码, 服务端调用), Google OAuth 登录
 
 ## 开发
 
@@ -31,7 +31,9 @@ pnpm build
 pnpm deploy                                    # 构建并部署到 Cloudflare
 ```
 
-需要环境变量: `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (参见 `.env.example`)。
+需要环境变量: `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_AMAP_KEY`, `VITE_AMAP_SECURITY_CODE` (JS API, 客户端) 与 `AMAP_WEB_KEY` (Web 服务, 服务端), 参见 `.env.example`; 均在高德开放平台控制台申请。
+
+坐标统一使用 GCJ-02 (高德坐标)。存量 WGS-84 数据由 `node scripts/convert-coords-to-gcj.mjs [--remote]` 一次性转换 (CI 部署后自动执行)。
 
 ## 部署
 

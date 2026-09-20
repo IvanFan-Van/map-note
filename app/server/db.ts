@@ -213,8 +213,8 @@ export async function createPlace(
     .bind(ownerId)
     .first<{ next_order: number }>();
   await env.DB.prepare(
-    `INSERT INTO places (id, owner_id, name, address, description, lat, lng, photos, metas, sort_order, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, '[]', '[]', ?, ?, ?)`,
+    `INSERT INTO places (id, owner_id, name, address, description, lat, lng, photos, metas, sort_order, created_at, updated_at, coord_system)
+     VALUES (?, ?, ?, ?, ?, ?, ?, '[]', '[]', ?, ?, ?, 'gcj02')`,
   )
     .bind(
       id,

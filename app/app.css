@@ -188,24 +188,30 @@
   cursor: pointer;
 }
 
-/* ---------- Leaflet popup 定制 ---------- */
-.place-popup .leaflet-popup-content-wrapper,
-.cluster-popup .leaflet-popup-content-wrapper {
+/* ---------- 高德信息窗 (InfoWindow isCustom) ---------- */
+.map-info-window {
+  position: relative;
+  background: #fff;
   border-radius: 14px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
-.place-popup .leaflet-popup-content {
-  margin: 0;
-  width: 336px !important;
+.map-info-window::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 2px;
+  transform: translateX(-50%) rotate(45deg);
 }
-.cluster-popup .leaflet-popup-content {
-  margin: 0;
-  width: 300px !important;
-}
-.place-popup .leaflet-popup-tip, .cluster-popup .leaflet-popup-tip {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-}
-.popup-react-mount { min-height: 40px; }
+.map-info-window.place-popup { width: 336px; }
+.map-info-window.cluster-popup { width: 300px; }
+.popup-react-mount { min-height: 40px; border-radius: 14px; overflow: hidden; }
+
+/* ---------- 路线方向箭头 ---------- */
+.route-arrow { line-height: 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3)); }
 
 /* ---------- 悬浮信息窗内容 ---------- */
 .place-popup-view, .place-popup-edit {
@@ -462,5 +468,5 @@
   .header-center { order: 3; flex-basis: 100%; }
   .search-box { width: 100%; }
   .user-name { display: none; }
-  .place-popup .leaflet-popup-content { width: 300px !important; }
+  .map-info-window.place-popup { width: 300px; }
 }
