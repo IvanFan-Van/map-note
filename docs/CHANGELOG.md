@@ -9,7 +9,10 @@
 - Cloudflare 资源重建: D1 `map-note` (uuid `2bd734bf-d832-425f-b268-00aee2669c2a`) 与 R2 `map-note-images`; `wrangler.jsonc` 绑定与 `database_id` 已更新 (旧资源保留待手动删除)
 - 自定义域名 `co-note.ivanfan.com` → `map-note.ivanfan.com`; CI 迁移命令改为 `wrangler d1 migrations apply map-note --remote`
 - 产品已从旅行地图重构为地图探索帖子平台 (见 0008 迁移): locations / posts / post_media
-- **待用户操作:** Google Console 添加 `https://map-note.ivanfan.com/auth/callback`; 高德 JS API Key 白名单加 `map-note.ivanfan.com`
+- GitHub 仓库 `IvanFan-Van/co-note` → `IvanFan-Van/map-note` (gh repo rename, 远端地址已更新)
+- 清理遗留配置: GitHub Secrets 删除 `PUSHER_APP_ID`/`PUSHER_CLUSTER`/`PUSHER_KEY`/`PUSHER_SECRET`/`GIPHY_API_KEY`; 本地 `.env` 同步删除
+- 首次部署: 补齐 `VITE_AMAP_KEY`/`VITE_AMAP_SECURITY_CODE`/`AMAP_WEB_KEY` 三个 GitHub Secrets 后部署成功; 线上验证 — 首页 200 (`地图探索 · map-note`)、`/api/map` 200、客户端产物已内联高德 loader
+- **待用户操作:** Google Console 添加 `https://map-note.ivanfan.com/auth/callback`; 高德 JS API Key 白名单加 `map-note.ivanfan.com`; 旧 `co-note` Worker/D1/R2 确认后手动删除
 
 ## 2026-08-06 — 自定义域名绑定 (map-note.ivanfan.com)
 
