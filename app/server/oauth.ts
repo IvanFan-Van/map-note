@@ -5,7 +5,7 @@ import { COOKIE_BASE } from "~/server/cookies";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
-const OAUTH_COOKIE = "co_note_oauth";
+const OAUTH_COOKIE = "map_note_oauth";
 const OAUTH_TTL_SECONDS = 10 * 60;
 
 export interface GoogleUserInfo {

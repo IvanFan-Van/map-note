@@ -155,7 +155,7 @@ export default function ExploreMap({ user }: { user: User | null }) {
   const map = mapRef.current;
 
   return (
-    <div className="travel-map-root">
+    <div className="explore-map-root">
       <div ref={containerRef} className="map-container" />
       <header className="map-header">
         <Link to="/" className="brand">🧭 <span>地图探索</span></Link>

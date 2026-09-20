@@ -1,4 +1,4 @@
-# 🧭 地图探索 (co-note)
+# 🧭 地图探索 (map-note)
 
 基于地图的内容探索平台 — 用户在地图上发布带定位的帖子, 浏览者按地点发现帖子。
 
@@ -28,7 +28,7 @@
 
 ```bash
 pnpm install
-pnpm db:migrate   # 初始化/更新本地 D1 (等价 wrangler d1 migrations apply co-note --local)
+pnpm db:migrate   # 初始化/更新本地 D1 (等价 wrangler d1 migrations apply map-note --local)
 pnpm dev          # http://localhost:5173
 pnpm lint
 pnpm typecheck
@@ -40,4 +40,4 @@ pnpm deploy       # 构建并部署到 Cloudflare
 
 ## 部署
 
-应用部署在 Cloudflare Workers, 自定义域名 `co-note.ivanfan.com`, D1 数据库与 R2 存储桶见 `wrangler.jsonc`。push `main` 自动执行 lint / typecheck / build、远程 D1 迁移与部署。
+应用部署在 Cloudflare Workers, 自定义域名 `map-note.ivanfan.com`, D1 数据库与 R2 存储桶见 `wrangler.jsonc`。push `main` 自动执行 lint / typecheck / build、远程 D1 迁移与部署。

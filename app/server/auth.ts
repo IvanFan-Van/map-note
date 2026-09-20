@@ -4,7 +4,7 @@ import type { User } from "~/lib/types";
 import { COOKIE_BASE } from "~/server/cookies";
 import { getUserById } from "~/server/db";
 
-export const SESSION_COOKIE = "co_note_session";
+export const SESSION_COOKIE = "map_note_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export function getSessionStorage(env: Env) {
