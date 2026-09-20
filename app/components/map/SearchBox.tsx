@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { searchGeocode } from "~/lib/geocode";
-import type { GeocodeResult } from "~/lib/types";
-import type { DraftPoint } from "./AddPlaceModal";
+import type { DraftPoint, GeocodeResult } from "~/lib/types";
 
 /** 地址搜索框: 输入关键词 → 候选列表 → 选择后交给添加流程 */
 export function SearchBox({ onPick }: { onPick: (draft: DraftPoint) => void }) {
@@ -40,6 +39,7 @@ export function SearchBox({ onPick }: { onPick: (draft: DraftPoint) => void }) {
       lng: r.lng,
       name: r.name || r.displayName.slice(0, 40),
       address: r.displayName,
+      amapPoiId: r.amapPoiId,
     });
     setQ("");
     setResults(null);

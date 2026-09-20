@@ -1,4 +1,4 @@
-import type { MetaItem, PhotoItem, Place, PlaceNote, User } from "~/lib/types";
+import type { LocationPoint, Post, PostMedia, PostSummary, User } from "~/lib/types";
 import type { GoogleUserInfo } from "~/server/oauth";
 
 export function now(): number {
@@ -40,6 +40,12 @@ export async function getUserById(env: Env, userId: string): Promise<User | null
   return row ? userFromRow(row) : null;
 }
 
+export async function updateUserName(env: Env, userId: string, name: string): Promise<void> {
+  await env.DB.prepare(`UPDATE users SET name = ? WHERE id = ?`)
+    .bind(name, userId)
+    .run();
+}
+
 export async function findOrCreateUserByGoogle(
   env: Env,
   info: GoogleUserInfo,
@@ -66,283 +72,400 @@ export async function findOrCreateUserByGoogle(
   };
 }
 
-export async function updateUserName(env: Env, userId: string, name: string): Promise<void> {
-  await env.DB.prepare(`UPDATE users SET name = ? WHERE id = ?`)
-    .bind(name, userId)
+// ---------- 地点 (locations) ----------
+
+const LOCATION_COLUMNS = `id, name, address, lat, lng, post_count`;
+
+interface LocationRow {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  post_count: number;
+}
+
+function locationFromRow(r: LocationRow): LocationPoint {
+  return {
+    id: r.id,
+    name: r.name,
+    address: r.address,
+    lat: r.lat,
+    lng: r.lng,
+    postCount: r.post_count,
+  };
+}
+
+/** 无 POI 时按坐标邻近匹配的容差 (约 55m) */
+const NEARBY_DEGREE = 0.0005;
+
+export async function getLocationById(env: Env, id: string): Promise<LocationPoint | null> {
+  const row = await env.DB.prepare(
+    `SELECT ${LOCATION_COLUMNS} FROM locations WHERE id = ?`,
+  )
+    .bind(id)
+    .first<LocationRow>();
+  return row ? locationFromRow(row) : null;
+}
+
+/**
+ * 发帖定位归一化: 优先按高德 POI ID 匹配; 否则在附近容差内找最近地点;
+ * 都不存在时创建新地点。
+ */
+export async function findOrCreateLocation(
+  env: Env,
+  input: { name: string; address: string; lat: number; lng: number; amapPoiId?: string },
+): Promise<LocationPoint> {
+  if (input.amapPoiId) {
+    const row = await env.DB.prepare(
+      `SELECT ${LOCATION_COLUMNS} FROM locations WHERE amap_poi_id = ?`,
+    )
+      .bind(input.amapPoiId)
+      .first<LocationRow>();
+    if (row) return locationFromRow(row);
+  }
+  const nearby = await env.DB.prepare(
+    `SELECT ${LOCATION_COLUMNS} FROM locations
+     WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+     LIMIT 20`,
+  )
+    .bind(
+      input.lat - NEARBY_DEGREE,
+      input.lat + NEARBY_DEGREE,
+      input.lng - NEARBY_DEGREE,
+      input.lng + NEARBY_DEGREE,
+    )
+    .all<LocationRow>();
+  let nearest: LocationRow | null = null;
+  let nearestDist = Infinity;
+  for (const row of nearby.results) {
+    const dLat = row.lat - input.lat;
+    const dLng = (row.lng - input.lng) * Math.cos((input.lat * Math.PI) / 180);
+    const dist = dLat * dLat + dLng * dLng;
+    if (dist < nearestDist) {
+      nearest = row;
+      nearestDist = dist;
+    }
+  }
+  if (nearest && nearestDist <= NEARBY_DEGREE * NEARBY_DEGREE) {
+    return locationFromRow(nearest);
+  }
+  const id = newId();
+  const ts = now();
+  await env.DB.prepare(
+    `INSERT INTO locations (id, name, address, lat, lng, amap_poi_id, post_count, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+  )
+    .bind(id, input.name, input.address, input.lat, input.lng, input.amapPoiId ?? null, ts, ts)
+    .run();
+  return { id, name: input.name, address: input.address, lat: input.lat, lng: input.lng, postCount: 0 };
+}
+
+/** 地图视野内的地点 (只返回有公开帖子的地点) */
+export async function listLocationsInBounds(
+  env: Env,
+  bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+  limit = 500,
+): Promise<LocationPoint[]> {
+  const rows = await env.DB.prepare(
+    `SELECT ${LOCATION_COLUMNS} FROM locations
+     WHERE post_count > 0 AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+     ORDER BY post_count DESC
+     LIMIT ?`,
+  )
+    .bind(bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng, limit)
+    .all<LocationRow>();
+  return rows.results.map(locationFromRow);
+}
+
+/** 重新计算地点的公开帖子数量 (冗余列, 发帖/改可见性/删帖后调用) */
+export async function recountLocationPosts(env: Env, locationId: string): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE locations
+     SET post_count = (SELECT COUNT(*) FROM posts WHERE location_id = ? AND visibility = 'public'),
+         updated_at = ?
+     WHERE id = ?`,
+  )
+    .bind(locationId, now(), locationId)
     .run();
 }
 
-// ---------- 地点 (places) ----------
+// ---------- 帖子 (posts) ----------
 
-const PLACE_COLUMNS = `id, owner_id, name, address, description, lat, lng, photos, metas, sort_order, created_at, updated_at`;
+const POST_COLUMNS = `p.id, p.author_id, p.location_id, p.lat, p.lng, p.place_name, p.address,
+  p.title, p.content, p.cover_url, p.visibility, p.created_at, p.updated_at,
+  u.name AS author_name, u.avatar_url AS author_avatar`;
 
-interface PlaceRow {
+interface PostRow {
   id: string;
-  owner_id: string;
-  name: string;
-  address: string;
-  description: string;
+  author_id: string;
+  location_id: string;
   lat: number;
   lng: number;
-  photos: string;
-  metas: string;
-  sort_order: number;
-  created_at: number;
-  updated_at: number;
-}
-
-interface NoteRow {
-  id: string;
-  place_id: string;
+  place_name: string;
+  address: string;
+  title: string;
   content: string;
-  position: number;
+  cover_url: string | null;
+  visibility: "public" | "private";
   created_at: number;
   updated_at: number;
+  author_name: string | null;
+  author_avatar: string | null;
 }
 
-const NOTE_COLUMNS = `id, place_id, content, position, created_at, updated_at`;
-
-function parseJsonArray<T>(raw: string | null, fallback: T[]): T[] {
-  if (!raw) return fallback;
-  try {
-    const value: unknown = JSON.parse(raw);
-    return Array.isArray(value) ? (value as T[]) : fallback;
-  } catch {
-    return fallback;
-  }
+interface MediaRow {
+  id: string;
+  kind: "image" | "video";
+  r2_key: string;
+  width: number;
+  height: number;
+  position: number;
 }
 
-function placeFromRow(r: PlaceRow): Place {
+function mediaFromRow(r: MediaRow): PostMedia {
   return {
     id: r.id,
-    ownerId: r.owner_id,
-    name: r.name,
-    address: r.address,
-    description: r.description,
+    kind: r.kind,
+    key: r.r2_key,
+    url: "/images/" + r.r2_key,
+    width: r.width,
+    height: r.height,
+    position: r.position,
+  };
+}
+
+function postFromRow(r: PostRow, media: PostMedia[]): Post {
+  return {
+    id: r.id,
+    authorId: r.author_id,
+    locationId: r.location_id,
     lat: r.lat,
     lng: r.lng,
-    photos: parseJsonArray<PhotoItem>(r.photos, []).filter(
-      (p) => p && typeof p.key === "string" && typeof p.url === "string",
-    ),
-    metas: parseJsonArray<MetaItem>(r.metas, []).filter(
-      (m) =>
-        m &&
-        typeof m.label === "string" &&
-        typeof m.score === "number" &&
-        Number.isInteger(m.score),
-    ),
-    sortOrder: r.sort_order,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-    notes: [],
-  };
-}
-
-function noteFromRow(r: NoteRow): PlaceNote {
-  return {
-    id: r.id,
-    placeId: r.place_id,
+    placeName: r.place_name,
+    address: r.address,
+    title: r.title,
     content: r.content,
-    position: r.position,
+    coverUrl: r.cover_url,
+    visibility: r.visibility,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    media,
+    author: r.author_name
+      ? { id: r.author_id, name: r.author_name, avatarUrl: r.author_avatar }
+      : null,
   };
 }
 
-export async function listPlaces(env: Env, ownerId: string): Promise<Place[]> {
+export async function listPostMedia(env: Env, postId: string): Promise<PostMedia[]> {
   const rows = await env.DB.prepare(
-    `SELECT ${PLACE_COLUMNS} FROM places WHERE owner_id = ? ORDER BY sort_order, created_at`,
+    `SELECT id, kind, r2_key, width, height, position FROM post_media
+     WHERE post_id = ? ORDER BY position, created_at`,
   )
-    .bind(ownerId)
-    .all<PlaceRow>();
-  const places = rows.results.map(placeFromRow);
-  if (places.length === 0) return [];
-  const notes = await env.DB.prepare(
-    `SELECT pn.id, pn.place_id, pn.content, pn.position, pn.created_at, pn.updated_at
-     FROM place_notes pn JOIN places p ON pn.place_id = p.id
-     WHERE p.owner_id = ? ORDER BY p.sort_order, pn.position, pn.created_at`,
-  )
-    .bind(ownerId)
-    .all<NoteRow>();
-  const byPlace = new Map<string, PlaceNote[]>();
-  for (const n of notes.results) {
-    const list = byPlace.get(n.place_id) ?? [];
-    list.push(noteFromRow(n));
-    byPlace.set(n.place_id, list);
-  }
-  return places.map((p) => ({ ...p, notes: byPlace.get(p.id) ?? [] }));
+    .bind(postId)
+    .all<MediaRow>();
+  return rows.results.map(mediaFromRow);
 }
 
-export async function getPlace(env: Env, placeId: string): Promise<Place | null> {
+export async function getPost(env: Env, postId: string): Promise<Post | null> {
   const row = await env.DB.prepare(
-    `SELECT ${PLACE_COLUMNS} FROM places WHERE id = ?`,
+    `SELECT ${POST_COLUMNS} FROM posts p LEFT JOIN users u ON u.id = p.author_id WHERE p.id = ?`,
   )
-    .bind(placeId)
-    .first<PlaceRow>();
+    .bind(postId)
+    .first<PostRow>();
   if (!row) return null;
-  const place = placeFromRow(row);
-  const notes = await env.DB.prepare(
-    `SELECT ${NOTE_COLUMNS} FROM place_notes
-     WHERE place_id = ? ORDER BY position, created_at`,
-  )
-    .bind(placeId)
-    .all<NoteRow>();
-  return { ...place, notes: notes.results.map(noteFromRow) };
+  return postFromRow(row, await listPostMedia(env, postId));
 }
 
-/** 仅查询地点归属, 用于鉴权路径 (不读取照片/笔记) */
-export async function getPlaceOwner(env: Env, placeId: string): Promise<string | null> {
-  const row = await env.DB.prepare(
-    `SELECT owner_id FROM places WHERE id = ?`,
-  )
-    .bind(placeId)
-    .first<{ owner_id: string }>();
-  return row?.owner_id ?? null;
-}
-
-export async function createPlace(
+export async function createPost(
   env: Env,
-  ownerId: string,
-  data: { name: string; address: string; description: string; lat: number; lng: number },
-): Promise<Place> {
+  authorId: string,
+  input: {
+    locationId: string;
+    lat: number;
+    lng: number;
+    placeName: string;
+    address: string;
+    title: string;
+    content: string;
+    visibility: "public" | "private";
+  },
+): Promise<Post> {
   const id = newId();
   const ts = now();
-  const orderRow = await env.DB.prepare(
-    `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM places WHERE owner_id = ?`,
-  )
-    .bind(ownerId)
-    .first<{ next_order: number }>();
   await env.DB.prepare(
-    `INSERT INTO places (id, owner_id, name, address, description, lat, lng, photos, metas, sort_order, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, '[]', '[]', ?, ?, ?)`,
+    `INSERT INTO posts (id, author_id, location_id, lat, lng, place_name, address,
+       title, content, cover_url, visibility, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
   )
     .bind(
       id,
-      ownerId,
-      data.name,
-      data.address,
-      data.description,
-      data.lat,
-      data.lng,
-      orderRow?.next_order ?? 0,
+      authorId,
+      input.locationId,
+      input.lat,
+      input.lng,
+      input.placeName,
+      input.address,
+      input.title,
+      input.content,
+      input.visibility,
       ts,
       ts,
     )
     .run();
-  return (await getPlace(env, id))!;
+  await recountLocationPosts(env, input.locationId);
+  return (await getPost(env, id))!;
 }
 
-export async function updatePlace(
+export async function updatePost(
   env: Env,
-  placeId: string,
-  changes: Partial<
-    Pick<Place, "name" | "address" | "description" | "lat" | "lng" | "photos" | "metas">
-  >,
-): Promise<Place | null> {
-  const ts = now();
+  postId: string,
+  changes: Partial<Pick<Post, "title" | "content" | "visibility">>,
+): Promise<Post | null> {
   const sets: string[] = [];
-  const binds: (string | number | null)[] = [];
+  const binds: (string | number)[] = [];
   for (const [key, value] of Object.entries(changes)) {
     if (value === undefined) continue;
     sets.push(`${key} = ?`);
-    binds.push(
-      key === "photos" || key === "metas" ? JSON.stringify(value) : (value as string | number),
-    );
+    binds.push(value as string);
   }
-  if (sets.length === 0) return getPlace(env, placeId);
-  sets.push("updated_at = ?");
-  binds.push(ts, placeId);
-  await env.DB.prepare(`UPDATE places SET ${sets.join(", ")} WHERE id = ?`)
-    .bind(...binds)
+  if (sets.length === 0) return getPost(env, postId);
+  sets.push(`updated_at = ?`);
+  binds.push(now());
+  await env.DB.prepare(`UPDATE posts SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds, postId)
     .run();
-  return getPlace(env, placeId);
+  const post = await getPost(env, postId);
+  if (post) await recountLocationPosts(env, post.locationId);
+  return post;
 }
 
-export async function deletePlace(env: Env, placeId: string): Promise<void> {
-  await env.DB.batch([
-    env.DB.prepare(`DELETE FROM place_notes WHERE place_id = ?`).bind(placeId),
-    env.DB.prepare(`DELETE FROM places WHERE id = ?`).bind(placeId),
-  ]);
-}
-
-// ---------- 地点笔记 (place_notes) ----------
-
-export async function createPlaceNote(
+/** 删除帖子及其媒体记录; 返回 R2 中需要清理的 key */
+export async function deletePost(
   env: Env,
-  placeId: string,
-  content: string,
-): Promise<PlaceNote> {
-  const id = newId();
-  const ts = now();
-  const posRow = await env.DB.prepare(
-    `SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM place_notes WHERE place_id = ?`,
-  )
-    .bind(placeId)
-    .first<{ next_pos: number }>();
-  const position = posRow?.next_pos ?? 0;
-  await env.DB.prepare(
-    `INSERT INTO place_notes (id, place_id, content, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(id, placeId, content, position, ts, ts)
-    .run();
-  return {
-    id,
-    placeId,
-    content,
-    position,
-    createdAt: ts,
-    updatedAt: ts,
-  };
+  postId: string,
+): Promise<{ mediaKeys: string[]; locationId: string } | null> {
+  const post = await getPost(env, postId);
+  if (!post) return null;
+  await env.DB.prepare(`DELETE FROM post_media WHERE post_id = ?`).bind(postId).run();
+  await env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(postId).run();
+  await recountLocationPosts(env, post.locationId);
+  return { mediaKeys: post.media.map((m) => m.key), locationId: post.locationId };
 }
 
-export async function updatePlaceNote(
+/** 供图片访问鉴权: 帖子作者与可见性 */
+export async function getPostAccess(
   env: Env,
-  placeId: string,
-  noteId: string,
-  changes: { content?: string; position?: number },
-): Promise<PlaceNote | null> {
-  if (changes.content !== undefined) {
-    await env.DB.prepare(
-      `UPDATE place_notes SET content = ?, updated_at = ? WHERE id = ? AND place_id = ?`,
-    )
-      .bind(changes.content, now(), noteId, placeId)
-      .run();
-  }
-  if (changes.position !== undefined && Number.isInteger(changes.position)) {
-    const rows = await env.DB.prepare(
-      `SELECT ${NOTE_COLUMNS} FROM place_notes
-       WHERE place_id = ? ORDER BY position, created_at`,
-    )
-      .bind(placeId)
-      .all<NoteRow>();
-    const notes = rows.results;
-    const idx = notes.findIndex((n) => n.id === noteId);
-    if (idx >= 0) {
-      const item = notes.splice(idx, 1)[0];
-      const target = Math.max(0, Math.min(changes.position, notes.length));
-      notes.splice(target, 0, item);
-      await env.DB.batch(
-        notes.map((n, i) =>
-          env.DB.prepare(`UPDATE place_notes SET position = ?, updated_at = ? WHERE id = ?`)
-            .bind(i, now(), n.id),
-        ),
-      );
+  postId: string,
+): Promise<{ authorId: string; visibility: "public" | "private" } | null> {
+  const row = await env.DB.prepare(
+    `SELECT author_id, visibility FROM posts WHERE id = ?`,
+  )
+    .bind(postId)
+    .first<{ author_id: string; visibility: "public" | "private" }>();
+  return row ? { authorId: row.author_id, visibility: row.visibility } : null;
+}
+
+/** 抽屉列表: 公开帖子 + 登录者自己的私密帖子, 游标分页 (created_at + id) */
+export async function listLocationPosts(
+  env: Env,
+  locationId: string,
+  viewerId: string | null,
+  cursor: string | null,
+  limit = 20,
+): Promise<{ posts: PostSummary[]; nextCursor: string | null }> {
+  const conditions = [`p.location_id = ?`, `(p.visibility = 'public' OR p.author_id = ?)`];
+  const binds: (string | number)[] = [locationId, viewerId ?? ""];
+  if (cursor) {
+    const [createdAtRaw, id] = cursor.split(":");
+    const createdAt = Number(createdAtRaw);
+    if (Number.isFinite(createdAt) && id) {
+      conditions.push(`(p.created_at < ? OR (p.created_at = ? AND p.id < ?))`);
+      binds.push(createdAt, createdAt, id);
     }
   }
-  const row = await env.DB.prepare(
-    `SELECT ${NOTE_COLUMNS} FROM place_notes WHERE id = ? AND place_id = ?`,
+  const rows = await env.DB.prepare(
+    `SELECT p.id, p.title, p.cover_url, p.created_at,
+       u.name AS author_name, u.avatar_url AS author_avatar, p.author_id
+     FROM posts p LEFT JOIN users u ON u.id = p.author_id
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY p.created_at DESC, p.id DESC
+     LIMIT ?`,
   )
-    .bind(noteId, placeId)
-    .first<NoteRow>();
-  return row ? noteFromRow(row) : null;
+    .bind(...binds, limit + 1)
+    .all<{
+      id: string;
+      title: string;
+      cover_url: string | null;
+      created_at: number;
+      author_name: string | null;
+      author_avatar: string | null;
+      author_id: string;
+    }>();
+  const hasMore = rows.results.length > limit;
+  const page = hasMore ? rows.results.slice(0, limit) : rows.results;
+  const posts: PostSummary[] = page.map((r) => ({
+    id: r.id,
+    title: r.title,
+    coverUrl: r.cover_url,
+    createdAt: r.created_at,
+    author: r.author_name
+      ? { id: r.author_id, name: r.author_name, avatarUrl: r.author_avatar }
+      : null,
+  }));
+  const last = page[page.length - 1];
+  const nextCursor = hasMore && last ? `${last.created_at}:${last.id}` : null;
+  return { posts, nextCursor };
 }
 
-export async function deletePlaceNote(
+export async function addPostMedia(
   env: Env,
-  placeId: string,
-  noteId: string,
-): Promise<void> {
-  await env.DB.prepare(`DELETE FROM place_notes WHERE id = ? AND place_id = ?`)
-    .bind(noteId, placeId)
+  postId: string,
+  input: { key: string; width: number; height: number },
+): Promise<PostMedia> {
+  const id = newId();
+  const ts = now();
+  const orderRow = await env.DB.prepare(
+    `SELECT COALESCE(MAX(position), -1) + 1 AS next_position FROM post_media WHERE post_id = ?`,
+  )
+    .bind(postId)
+    .first<{ next_position: number }>();
+  await env.DB.prepare(
+    `INSERT INTO post_media (id, post_id, kind, r2_key, width, height, position, created_at)
+     VALUES (?, ?, 'image', ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, postId, input.key, input.width, input.height, orderRow?.next_position ?? 0, ts)
     .run();
+  const url = "/images/" + input.key;
+  await env.DB.prepare(
+    `UPDATE posts SET cover_url = COALESCE(cover_url, ?), updated_at = ? WHERE id = ?`,
+  )
+    .bind(url, ts, postId)
+    .run();
+  return { id, kind: "image", key: input.key, url, width: input.width, height: input.height, position: orderRow?.next_position ?? 0 };
+}
+
+/** 删除单张媒体; 若删除的是封面则顺延到下一张 */
+export async function deletePostMedia(
+  env: Env,
+  mediaId: string,
+): Promise<{ key: string; postId: string } | null> {
+  const row = await env.DB.prepare(
+    `SELECT id, post_id, r2_key FROM post_media WHERE id = ?`,
+  )
+    .bind(mediaId)
+    .first<{ id: string; post_id: string; r2_key: string }>();
+  if (!row) return null;
+  await env.DB.prepare(`DELETE FROM post_media WHERE id = ?`).bind(mediaId).run();
+  const next = await env.DB.prepare(
+    `SELECT r2_key FROM post_media WHERE post_id = ? ORDER BY position, created_at LIMIT 1`,
+  )
+    .bind(row.post_id)
+    .first<{ r2_key: string }>();
+  await env.DB.prepare(
+    `UPDATE posts SET cover_url = ?, updated_at = ? WHERE id = ?`,
+  )
+    .bind(next ? "/images/" + next.r2_key : null, now(), row.post_id)
+    .run();
+  return { key: row.r2_key, postId: row.post_id };
 }

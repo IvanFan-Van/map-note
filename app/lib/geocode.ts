@@ -9,9 +9,8 @@ export async function searchGeocode(
 ): Promise<GeocodeResult[]> {
   const params = new URLSearchParams({ q: q.slice(0, 200), limit: String(limit) });
   if (near) {
-    const d = 0.02;
-    params.set("viewbox", [near.lng - d, near.lat + d, near.lng + d, near.lat - d].join(","));
-    params.set("bounded", "1");
+    params.set("nearLat", String(near.lat));
+    params.set("nearLng", String(near.lng));
   }
   const data = await api<{ results: GeocodeResult[] }>("/api/geocode?" + params.toString());
   return data.results ?? [];
